@@ -2,6 +2,13 @@
 
 > Nhật ký thay đổi. Mục mới nhất ở trên cùng. Mỗi lần sửa code đều thêm một mục (xem `CLAUDE.md` mục 4).
 
+## [2026-09-29] B4 (Ngày 3) — công tắc `DEFENSE_PROFILE` + kho RAG riêng cho từng profile
+- Trạng thái: code xong, đã test (công tắc 13/13; script sao kho 7 tình huống trên bản sao SQLite thật; 2 bản Agent chạy song song; hồi quy Ngày 2 21/21, Python 3.10). Chờ Hiếu tạo kho riêng + chạy thật.
+- File đã sửa: `core/profile.py` (mới), `tools/make_rag_stores.py` (mới), `rag_engine/retriever.py` (đường dẫn kho, dòng ~6–11), `api/main.py` (log khởi động, `/health`, `defense_profile` trong kết quả), `.gitignore` (`rag_stores/`)
+- Tóm tắt: Agent đọc `DEFENSE_PROFILE` (`off / l1 / l12 / full`) lúc khởi động; sai giá trị → dừng; không đặt → `off` + cảnh báo. `core/profile.py` là nơi duy nhất trả lời "lớp phòng vệ nào đang bật" (`layer_enabled(n)`: off={}, l1={1}, l12={1,2}, full={1,2,4,5}) — các bước sau chỉ hỏi hàm này. Kho RAG chọn theo thứ tự: `RAG_STORE_DIR` → `rag_stores/<profile>/` → kho gốc `chroma_db/` (kèm cảnh báo). Script sao kho kiểm kho gốc trước — có tài liệu không rõ nguồn thì từ chối — rồi sao thành 4 kho, đếm lại từng kho, ghi `rag_stores/_copies.json`. Bản `off` hoạt động y hệt trước. CHƯA có lớp phòng vệ nào được code — công tắc chỉ là nền cho B6, Ngày 4, Ngày 5.
+- Kiểm tra: kho bẩn (còn `sync_policy_…`) → từ chối; kho sạch 7.719 chunk → 4 kho, mỗi kho 7.719; chạy lại không `--force` → giữ nguyên; `--force --profiles full` → chỉ tạo lại full; kho gốc không bị sửa. `/health` bản off/full đúng; `call_agent` trả `defense_profile` đúng từng bản.
+- Việc tiếp theo: Hiếu tắt uvicorn → `python tools\make_rag_stores.py` → chạy bản `off` ở 8010. **MỐC ĐO: baseline Bảng 2 (dòng 0) + Bảng 4 (cột off) trên bản `off`, TRƯỚC khi viết code phòng thủ.** Sau đó B5 (ticket hai ngăn).
+
 ## [2026-09-29] B3.2 — `eval_golden.py` loại ca lỗi + sửa `.gitignore`
 - Trạng thái: xong, đã test (chạy trọn `eval_golden.py` với Agent cổng 8010; chấm ca lỗi 3/3)
 - File đã sửa: `eval/eval_golden.py` (`score_one`, `run_profile`), `.gitignore` (bỏ 3 dấu cách thụt đầu 5 dòng Hiếu vừa thêm)

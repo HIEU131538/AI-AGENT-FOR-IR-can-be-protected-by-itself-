@@ -5,12 +5,16 @@ from agent.chroma_lock import chroma_lock as _chroma_lock
 
 # Cấu hình đường dẫn
 current_dir = os.path.dirname(os.path.abspath(__file__))
-CHROMA_PATH = os.path.abspath(os.path.join(current_dir, "../chroma_db"))
+# B4 (Ngày 3): kho RAG chọn theo DEFENSE_PROFILE — mỗi bản Agent một kho riêng (core/profile.py).
+# Chưa tạo kho riêng thì core/profile.py tự lùi về kho gốc chroma_db/ như trước.
+from core.profile import RAG_STORE_DIR
+CHROMA_PATH = RAG_STORE_DIR
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 
 class SOCRetriever:
     def __init__(self):
         print("[*] Đang khởi tạo Người Thủ Thư (SOC Retriever)...")
+        print(f"[*] Kho RAG đang dùng: {CHROMA_PATH}")
         self.embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
         self.db = Chroma(persist_directory=CHROMA_PATH, embedding_function=self.embeddings)
         print("[+] Kết nối kho tri thức thành công!")

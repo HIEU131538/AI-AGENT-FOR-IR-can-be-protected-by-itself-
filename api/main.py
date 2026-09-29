@@ -37,6 +37,13 @@ from agent.nodes.responder import (
     get_soar_mode as _get_soar_mode,
 )
 from api.alert_adapter import Alert, to_legacy_raw_log  # B1: hợp đồng alert + giàn giáo alert → raw_log
+from core import profile as defense_profile  # B4: công tắc DEFENSE_PROFILE (off / l1 / l12 / full)
+
+for _msg in defense_profile.startup_messages():
+    if "CẢNH BÁO" in _msg:
+        logger.warning(_msg)
+    else:
+        logger.info(_msg)
 
 
 # ==========================================
@@ -223,7 +230,8 @@ def start_chroma_monitor():
 
 @app.get("/health")
 def health():
-    return {"status": "healthy"}
+    # B4: cho biết bản Agent này là profile nào, bật lớp nào, dùng kho RAG nào
+    return {"status": "healthy", **defense_profile.describe()}
 
 @app.get("/stats")
 def stats():
@@ -730,6 +738,7 @@ def _process_one_alert(alert: Alert) -> Dict[str, Any]:
             "action_taken": res.action_taken,
             "processing_time_ms": res.processing_time_ms,
             "enrichment_summary": res.enrichment.get("summary", ""),   # Ngày 2
+            "defense_profile": defense_profile.PROFILE,                # B4: bộ đo kiểm được đang gọi đúng bản
         }
     except HTTPException as e:
         logger.error(f"[Ingest] Alert {alert.alert_id} lỗi khi phân tích: {e.detail}")

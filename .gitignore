@@ -222,3 +222,6 @@ chroma_db_backup_*/
 rag_engine/chroma_db/
 *Zone.Identifier
 results/
+
+# B4: kho RAG riêng của từng profile (sao từ chroma_db/ bằng tools/make_rag_stores.py)
+rag_stores/
