@@ -1,0 +1,19 @@
+# threat_intel/local_iocs.yaml — Danh sách IOC nội bộ (Ngày 2)
+#
+# Trả lời câu analyst hỏi: "IP này là ai, có tiền án không?"
+# BẮT BUỘC có, vì IP trong lab là IP nội bộ (192.168.x.x) — AbuseIPDB không có dữ liệu về chúng.
+# ĐÂY LÀ NGUỒN IOC MÔ PHỎNG cho lab — báo cáo phải ghi rõ điều này.
+#
+# Thứ tự tra của node làm giàu:
+#   1. IP có trong file này            → lấy verdict ở đây
+#   2. IP nội bộ, không có trong file  → "no_record" (không tra AbuseIPDB)
+#   3. IP công khai                    → AbuseIPDB (có cache 24h; lỗi mạng/không có key → "unknown")
+#
+# verdict: known_bad | suspicious
+
+iocs:
+  - ip: 192.168.56.10
+    verdict: known_bad
+    source: "mô phỏng — lab AegisSOC"
+    reason: "Máy tấn công của kịch bản demo (giả lập IP đã bị ghi nhận trong một sự cố trước)"
+    added: "2026-09-28"

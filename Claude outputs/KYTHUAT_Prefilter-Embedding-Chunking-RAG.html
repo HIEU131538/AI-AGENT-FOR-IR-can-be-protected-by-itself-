@@ -1,0 +1,748 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><title>Pre-filter, Embedding và RAG</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#F5F7F9; --surface:#FFFFFF; --surface-alt:#EAEEF1; --surface-raised:#FFFFFF;
+    --ink:#142029; --ink-muted:#56646F; --ink-faint:#8695A0; --border:#DBE1E6;
+    --accent:#0E7C86; --accent-strong:#075E66; --accent-soft:#DFF1F1;
+    --warn:#B4650A; --warn-soft:#FBEBD9;
+    --danger:#B23A3A; --danger-soft:#F7E4E2;
+    --good:#2F7D5A; --good-soft:#E1F0E7;
+    --shadow:0 1px 2px rgba(20,32,41,.06), 0 10px 28px -14px rgba(20,32,41,.16);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0F171F; --surface:#16212B; --surface-alt:#1D2933; --surface-raised:#1B2731;
+      --ink:#E7ECEF; --ink-muted:#9FB0BD; --ink-faint:#6E818D; --border:#2A3A44;
+      --accent:#4FD1DB; --accent-strong:#7EE3EA; --accent-soft:rgba(79,209,219,.12);
+      --warn:#E3A63E; --warn-soft:rgba(227,166,62,.14);
+      --danger:#E2827A; --danger-soft:rgba(226,130,122,.14);
+      --good:#6FCB9F; --good-soft:rgba(111,203,159,.14);
+      --shadow:0 1px 2px rgba(0,0,0,.35), 0 10px 28px -14px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0F171F; --surface:#16212B; --surface-alt:#1D2933; --surface-raised:#1B2731;
+    --ink:#E7ECEF; --ink-muted:#9FB0BD; --ink-faint:#6E818D; --border:#2A3A44;
+    --accent:#4FD1DB; --accent-strong:#7EE3EA; --accent-soft:rgba(79,209,219,.12);
+    --warn:#E3A63E; --warn-soft:rgba(227,166,62,.14);
+    --danger:#E2827A; --danger-soft:rgba(226,130,122,.14);
+    --good:#6FCB9F; --good-soft:rgba(111,203,159,.14);
+    --shadow:0 1px 2px rgba(0,0,0,.35), 0 10px 28px -14px rgba(0,0,0,.55);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--ink); margin:0;
+    font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+    font-size:16.5px; line-height:1.6;
+    padding-inline:20px; padding-block:0 48px;
+  }
+  h1,h2,h3,.mono{ font-family:"Archivo",system-ui,sans-serif; }
+  code,pre,.mono-sm{ font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  /* NOTE: IBM Plex Mono drops the accent on Vietnamese double-diacritic vowels (ế, ố, ử, ...),
+     so it is reserved for ASCII-only code/identifiers. All Vietnamese labels below use Archivo. */
+  .chip,.badge,.eyebrow,.card .tag,thead th,tbody td:first-child{ font-family:"Archivo",system-ui,sans-serif; }
+
+  a{ color:var(--accent-strong); }
+  :root[data-theme="dark"] a, :root:not([data-theme="light"]) a{ color:var(--accent); }
+
+  .wrap{ max-width:840px; margin:0 auto; }
+  .wide{ max-width:960px; margin:0 auto; }
+
+  /* header */
+  header.top{
+    max-width:840px; margin:0 auto; padding-top:38px; padding-bottom:22px;
+    border-bottom:1px solid var(--border);
+  }
+  .eyebrow{
+    font-size:12px; letter-spacing:.08em; font-weight:600;
+    text-transform:uppercase; color:var(--accent-strong); margin:0 0 10px;
+  }
+  h1.title{
+    font-size:clamp(28px,5vw,40px); font-weight:800; margin:0 0 10px; line-height:1.12;
+    text-wrap:balance;
+  }
+  p.dek{ font-size:17px; color:var(--ink-muted); margin:0 0 18px; max-width:60ch; }
+
+  .status-strip{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+  .chip{
+    font-size:11.5px; padding:5px 10px; border-radius:99px; border:1px solid var(--border);
+    background:var(--surface-alt); color:var(--ink-muted); white-space:nowrap;
+    display:inline-flex; align-items:center; gap:6px; letter-spacing:.01em;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; display:inline-block; flex:none; }
+  .dot.done{ background:var(--good); }
+  .dot.progress{ background:var(--accent); }
+  .dot.open{ background:var(--warn); }
+  .dot.risk{ background:var(--danger); }
+
+  /* sections */
+  section{ max-width:840px; margin:0 auto; padding-top:44px; }
+  section.figure-section{ max-width:960px; }
+  h2{ font-size:22px; font-weight:700; margin:0 0 6px; letter-spacing:-.01em; }
+  h2 .num{ color:var(--accent-strong); font-family:"IBM Plex Mono",monospace; font-size:14px; margin-right:8px; }
+  .section-note{ color:var(--ink-muted); font-size:14.5px; margin:0 0 20px; max-width:64ch; }
+  h3{ font-size:16.5px; font-weight:700; margin:26px 0 8px; }
+  p{ margin:0 0 14px; }
+  .lede{ font-size:15px; }
+
+  /* badges */
+  .badge{
+    font-size:11px; font-weight:600; padding:3px 8px; border-radius:5px;
+    display:inline-block; letter-spacing:.01em; white-space:nowrap;
+  }
+  .badge.done{ background:var(--good-soft); color:var(--good); }
+  .badge.progress{ background:var(--accent-soft); color:var(--accent-strong); }
+  .badge.open{ background:var(--warn-soft); color:var(--warn); }
+  .badge.risk{ background:var(--danger-soft); color:var(--danger); }
+
+  /* cards */
+  .card-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:18px 0; }
+  @media (max-width:640px){ .card-row{ grid-template-columns:1fr; } }
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:18px 20px; box-shadow:var(--shadow);
+  }
+  .card h3{ margin-top:0; font-size:15.5px; }
+  .card .tag{
+    font-size:10.5px; font-weight:600; color:var(--ink-faint);
+    text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; display:block;
+  }
+  .card ul{ margin:10px 0 0; padding-left:18px; font-size:14.5px; }
+  .card li{ margin-bottom:5px; }
+
+  /* tables */
+  .table-scroll{ overflow-x:auto; margin:14px 0 22px; border:1px solid var(--border); border-radius:10px; }
+  table{ border-collapse:collapse; width:100%; font-size:13.5px; min-width:560px; }
+  thead th{
+    background:var(--surface-alt); text-align:left; font-weight:600; font-size:11.5px;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--ink-muted);
+    padding:9px 12px; border-bottom:1px solid var(--border); white-space:nowrap;
+  }
+  tbody td{ padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:top; font-family:"Source Serif 4",serif; font-size:14px;}
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody td:first-child{ font-size:12.5px; font-weight:600; color:var(--ink-muted); }
+
+  /* code block */
+  pre.code{
+    background:var(--surface-alt); border:1px solid var(--border); border-radius:10px;
+    padding:16px 18px; overflow-x:auto; font-size:12.5px; line-height:1.65; color:var(--ink);
+  }
+  pre.code .k{ color:var(--accent-strong); }
+  pre.code .c{ color:var(--ink-faint); font-style:italic; }
+
+  /* decision boxes */
+  .decision{
+    border:1px solid var(--border); border-left:4px solid var(--accent); border-radius:8px;
+    padding:14px 18px; background:var(--surface); margin:16px 0;
+  }
+  .decision.reco{ border-left-color:var(--good); background:var(--good-soft); }
+  .decision h4{ margin:0 0 6px; font-family:"Archivo",sans-serif; font-size:14px; }
+  .decision p{ margin:0; font-size:14px; }
+
+  .opts{ display:grid; gap:12px; margin:16px 0; }
+  .opt{
+    display:grid; grid-template-columns:28px 1fr; gap:10px; align-items:start;
+    padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--surface);
+  }
+  .opt .letter{
+    font-family:"IBM Plex Mono",monospace; font-weight:700; color:var(--accent-strong);
+    background:var(--accent-soft); border-radius:6px; width:28px; height:28px; display:flex;
+    align-items:center; justify-content:center; font-size:13px;
+  }
+  .opt h4{ margin:0 0 4px; font-family:"Archivo",sans-serif; font-size:14.5px; }
+  .opt p{ margin:0; font-size:14px; color:var(--ink-muted); }
+
+  /* open items list */
+  ol.open-list{ padding-left:0; list-style:none; counter-reset:item; margin:18px 0; }
+  ol.open-list li{
+    counter-increment:item; position:relative; padding:12px 16px 12px 48px;
+    border:1px solid var(--border); border-radius:8px; margin-bottom:10px; background:var(--surface);
+    font-size:14.5px;
+  }
+  ol.open-list li::before{
+    content: counter(item);
+    font-family:"IBM Plex Mono",monospace; font-weight:700; font-size:13px;
+    position:absolute; left:14px; top:12px; color:var(--warn);
+    background:var(--warn-soft); width:22px; height:22px; border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  ol.open-list li strong{ display:block; margin-bottom:2px; font-family:"Archivo",sans-serif; font-size:14.5px;}
+
+  figure{ margin:0; }
+  figcaption{ font-size:13px; color:var(--ink-muted); text-align:center; margin-top:12px; padding:0 12px;}
+  .diagram-wrap{ overflow-x:auto; padding:8px 0; }
+  svg.arch{ display:block; margin:0 auto; max-width:100%; height:auto; min-width:720px; }
+  .node-title{ font-family:"Archivo",sans-serif; font-weight:700; font-size:12.5px; fill:var(--ink); }
+  .node-sub{ font-family:"Archivo",sans-serif; font-weight:500; font-size:9.5px; fill:var(--ink-muted); }
+  .step-num{ font-family:"IBM Plex Mono",monospace; font-weight:700; font-size:11px; fill:var(--accent-strong); }
+  .arrow-label{ font-family:"Archivo",sans-serif; font-weight:500; font-size:9.5px; fill:var(--ink-muted); }
+  .arrow-label.warn-label{ fill:var(--warn); }
+  .box-core{ fill:var(--surface); stroke:var(--ink); stroke-width:1.4; }
+  .box-src{ fill:var(--accent-soft); stroke:var(--accent-strong); stroke-width:1.6; }
+  .box-open{ fill:var(--warn-soft); stroke:var(--warn); stroke-width:1.6; stroke-dasharray:6 4; }
+  .box-good{ fill:var(--good-soft); stroke:var(--good); stroke-width:1.6; }
+  .box-inj{ fill:var(--surface-alt); stroke:var(--ink-faint); stroke-width:1.3; stroke-dasharray:3 3; }
+  .flow-line{ stroke:var(--ink); stroke-width:1.4; fill:none; }
+  .bypass-line{ stroke:var(--ink-faint); stroke-width:1.3; fill:none; stroke-dasharray:4 4; }
+  .step-circle{ fill:var(--surface); stroke:var(--accent-strong); stroke-width:1.4; }
+  .box-attacker{ fill:var(--danger-soft); stroke:var(--danger); stroke-width:1.6; stroke-dasharray:5 3; }
+  .zone-band{ fill:var(--surface-alt); stroke:var(--border); stroke-width:1.3; }
+  .zone-label{ font-family:"Archivo",sans-serif; font-weight:700; font-size:10.5px; letter-spacing:.04em; fill:var(--ink-muted); text-transform:uppercase; }
+  .attack-line{ stroke:var(--danger); stroke-width:1.4; fill:none; stroke-dasharray:5 3; }
+  .attack-label{ font-family:"Archivo",sans-serif; font-weight:600; font-size:9.5px; fill:var(--danger); }
+
+  /* source citations */
+  a.cite{ color:var(--accent-strong); text-decoration:none; font-weight:600; font-size:.88em;
+    border-bottom:1px dotted var(--accent); white-space:nowrap; }
+  a.cite:hover{ border-bottom-style:solid; }
+  .src-list{ list-style:none; padding:0; margin:10px 0 0; font-size:12.5px; color:var(--ink-muted); }
+  .src-list li{ padding:5px 0; border-bottom:1px solid var(--border); }
+  .src-list li:last-child{ border-bottom:none; }
+  .src-list a{ color:var(--accent-strong); text-decoration:none; font-weight:600; }
+  .src-list a:hover{ text-decoration:underline; }
+  /* standards mapping box */
+  .standards{ background:var(--accent-soft); border:1px solid var(--accent); border-radius:12px;
+    padding:16px 18px; margin:18px 0; }
+  .standards h4{ margin:0 0 10px; font-family:"Archivo",sans-serif; font-size:15px; color:var(--accent-strong); }
+  .std-row{ display:grid; grid-template-columns:170px 1fr; gap:6px 14px; align-items:baseline;
+    padding:7px 0; border-top:1px solid var(--border); font-size:14px; }
+  .standards .std-row{ border-top-color:var(--accent); }
+  .std-row:first-of-type{ border-top:none; }
+  .std-k{ font-family:"Archivo",sans-serif; font-weight:700; color:var(--ink); font-size:13.5px; }
+  @media (max-width:560px){ .std-row{ grid-template-columns:1fr; gap:2px; } }
+
+  .legend{ display:flex; flex-wrap:wrap; gap:16px; justify-content:center; margin-top:6px; font-size:12px; color:var(--ink-muted); }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .legend i{ width:14px; height:10px; border-radius:2px; display:inline-block; }
+
+  footer{ max-width:840px; margin:52px auto 0; padding-top:20px; border-top:1px solid var(--border);
+    font-size:12px; color:var(--ink-faint); }
+
+  /* ── Bổ sung riêng cho tài liệu tra cứu dày (file kiến thức) ───────────── */
+
+  /* Nhịp giữa các mục: có đường phân cách rõ + thoáng hơn */
+  section + section{ border-top:1px solid var(--border); padding-top:54px; }
+  h3{ margin:32px 0 10px; }
+  section > p{ max-width:68ch; }
+  .section-note{ margin-bottom:18px; }
+
+  /* Danh sách định nghĩa đứng độc lập — thay cho bảng khi nội dung là văn xuôi */
+  .deflist{ margin:16px 0 24px; }
+  .deflist .std-row{ padding:11px 0; grid-template-columns:186px 1fr; }
+  .deflist .std-row:first-of-type{ border-top:1px solid var(--border); }
+  .deflist .std-k{ color:var(--accent-strong); }
+  @media (max-width:560px){ .deflist .std-row{ grid-template-columns:1fr; gap:3px; } }
+
+  /* Khối "mình đang ở đâu" — nhẹ hơn hộp quyết định, có nhãn riêng */
+  .here{ border-left:3px solid var(--accent); background:var(--surface-alt);
+    border-radius:0 8px 8px 0; padding:14px 17px; margin:18px 0; }
+  .here-label{ font-family:"Archivo",sans-serif; font-size:10.5px; font-weight:700;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--accent-strong);
+    display:block; margin-bottom:6px; }
+  .here p{ margin:0 0 10px; font-size:14.5px; }
+  .here p:last-child{ margin-bottom:0; }
+  .here .std-row{ font-size:14px; border-top-color:var(--border); }
+
+  /* Bảng: thoáng hơn, cột đầu rõ vai trò hơn */
+  thead th{ padding:10px 13px; }
+  tbody td{ padding:11px 13px; }
+  tbody td:first-child{ color:var(--ink); font-size:13px; }
+
+  /* Bảng tra thuật ngữ: gọn, không ép bề ngang */
+  .glossary table{ min-width:440px; }
+  .glossary tbody td:first-child{ white-space:nowrap; }
+
+  /* Hộp quyết định trong tài liệu này dùng tiết chế hơn */
+  .decision{ margin:18px 0; }
+  .decision h4{ font-size:14.5px; margin-bottom:8px; }
+
+
+  .decision.warn{ border-left-color:var(--warn); background:var(--warn-soft); }
+  .decision.risk{ border-left-color:var(--danger); background:var(--danger-soft); }
+  .phase-a{ border-left-color:var(--accent); }
+  table td, table th{ vertical-align:top; }
+</style>
+
+<style>
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ color-scheme:dark; } }
+  :root[data-theme="dark"]{ color-scheme:dark; }
+
+  /* mục lục */
+  nav.toc{ max-width:840px; margin:26px auto 0; display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:18px; }
+  nav.toc .grp{ display:flex; flex-direction:column; gap:4px; }
+  nav.toc .grp-t{ font-family:"Archivo",sans-serif; font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:4px; }
+  nav.toc a{ font-family:"Archivo",sans-serif; font-size:14px; text-decoration:none; color:var(--ink); padding:3px 0; border-bottom:1px dotted var(--border); }
+  nav.toc a span{ color:var(--accent-strong); font-weight:700; margin-right:6px; font-variant-numeric:tabular-nums; }
+  nav.toc a:hover{ color:var(--accent-strong); }
+
+  /* phần lớn A/B/C */
+  .part{ max-width:840px; margin:64px auto 0; padding:18px 0 0; border-top:3px solid var(--ink); }
+  .part p{ margin:0; font-family:"Archivo",sans-serif; }
+  .part .pk{ font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-strong); }
+  .part .pt{ font-size:26px; font-weight:800; margin-top:4px; }
+  .part + section{ border-top:none !important; padding-top:30px !important; }
+
+  /* câu nói mẫu */
+  .say{ border:1px solid var(--accent); border-radius:10px; padding:14px 18px 14px; margin:16px 0; background:var(--surface); }
+  .say-l{ font-family:"Archivo",sans-serif; font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--accent-strong); display:block; margin-bottom:6px; }
+  .say p{ margin:0 0 8px; font-style:italic; font-size:15px; }
+  .say p:last-child{ margin-bottom:0; }
+
+  /* ô cần tự điền */
+  mark.fill{ background:var(--warn-soft); color:var(--warn); font-family:"Archivo",sans-serif; font-weight:600; font-size:.86em; padding:1px 6px; border-radius:4px; border:1px dashed var(--warn); white-space:normal; }
+
+  /* hỏi đáp */
+  .qa-tools{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:12px 0 4px; }
+  .qa-tools button{ font-family:"Archivo",sans-serif; font-size:13px; font-weight:600; padding:7px 14px; border-radius:7px; border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent-strong); cursor:pointer; }
+  .qa-tools button:focus-visible, .qa-q:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .qa-tools span{ font-size:13px; color:var(--ink-muted); }
+  .qa{ border-top:1px solid var(--border); padding:14px 0 12px; }
+  .qa:last-child{ border-bottom:1px solid var(--border); }
+  .qa-q{ font-family:"Archivo",sans-serif; font-weight:700; font-size:15px; margin:0 0 6px; display:flex; gap:10px; align-items:baseline; }
+  .qa-q .qn{ font-size:11.5px; color:var(--accent-strong); min-width:34px; font-variant-numeric:tabular-nums; flex:none; }
+  .qa-a{ padding-left:44px; font-size:14.5px; }
+  .qa-a p{ margin:0 0 8px; }
+  .qa-a p:last-child{ margin-bottom:0; }
+  .qa-a ul{ margin:4px 0 8px; padding-left:18px; }
+  .qa-a li{ margin-bottom:3px; }
+  .qa-hint{ display:none; padding-left:44px; font-size:13px; color:var(--ink-faint); font-family:"Archivo",sans-serif; }
+  .quiz .qa-q{ cursor:pointer; }
+  .quiz .qa:not(.open) .qa-a{ display:none; }
+  .quiz .qa:not(.open) .qa-hint{ display:block; }
+  .qa .lvl{ font-family:"Archivo",sans-serif; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:2px 6px; border-radius:4px; background:var(--surface-alt); color:var(--ink-muted); flex:none; }
+  .qa .lvl.hard{ background:var(--danger-soft); color:var(--danger); }
+  @media (max-width:560px){ .qa-a,.qa-hint{ padding-left:0; } }
+
+  /* bảng số liệu */
+  td.n, th.n{ font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
+  .kicker{ font-family:"Archivo",sans-serif; font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); margin:26px 0 6px; }
+  pre.code{ white-space:pre; }
+  .legend-row{ display:flex; flex-wrap:wrap; gap:8px 14px; margin:10px 0 4px; font-size:13px; color:var(--ink-muted); align-items:center; }
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
+</style>
+<header class="top">
+  <p class="eyebrow">Tài liệu kỹ thuật · lõi Agent / EdgeGuard-AI / AegisSOC · 25/09/2026</p>
+  <h1 class="title">ML Pre-filter, embedding, chunking và RAG — thiết kế chi tiết</h1>
+  <p class="dek">Phần một là hướng dẫn dựng ML Pre-filter từ dữ liệu tới triển khai: bài toán, nhãn, đặc trưng, chia dữ liệu, chọn model, hiệu chuẩn, ngưỡng, tích hợp và cách chứng minh không bỏ lọt. Phần hai tổng quan các họ embedding, các chiến lược chunking và các kiến trúc RAG, đặt cạnh cấu hình thật trong <code>KMA_AI_AGENT</code> và hướng nâng cấp.</p>
+</header>
+
+<nav class="toc" aria-label="Mục lục">
+  <div class="grp"><span class="grp-t">ML Pre-filter</span>
+    <a href="#p1"><span>01</span>Bài toán và vị trí</a>
+    <a href="#p2"><span>02</span>Hiện trạng: lọc bằng luật</a>
+    <a href="#p3"><span>03</span>Dữ liệu và nhãn</a>
+    <a href="#p4"><span>04</span>Đặc trưng</a>
+    <a href="#p5"><span>05</span>Chia dữ liệu</a></div>
+  <div class="grp"><span class="grp-t">&nbsp;</span>
+    <a href="#p6"><span>06</span>Model và huấn luyện</a>
+    <a href="#p7"><span>07</span>Hiệu chuẩn và ngưỡng</a>
+    <a href="#p8"><span>08</span>Tích hợp vào pipeline</a>
+    <a href="#p9"><span>09</span>Triển khai và giám sát</a>
+    <a href="#p10"><span>10</span>Bảng số và câu trả lời</a></div>
+  <div class="grp"><span class="grp-t">Truy hồi tri thức</span>
+    <a href="#p11"><span>11</span>Embedding</a>
+    <a href="#p12"><span>12</span>Chunking</a>
+    <a href="#p13"><span>13</span>RAG</a>
+    <a href="#p14"><span>14</span>Câu trả lời phỏng vấn</a></div>
+</nav>
+
+<div class="part"><p class="pk">Phần một</p><p class="pt">ML Pre-filter</p></div>
+
+<section id="p1">
+  <h2><span class="num">01</span>Bài toán và vị trí trong pipeline</h2>
+  <p>Pre-filter đứng giữa SIEM và Agent. Nó giải một bài toán phân loại nhị phân duy nhất: <strong>alert này có đáng tốn một lượt suy luận LLM không</strong>. Nó không phân loại họ mã độc, không thay luật phát hiện, và không đưa ra kết luận an ninh; alert bị loại vẫn nằm nguyên trong Splunk để tra cứu và thống kê.</p>
+  <pre class="code">Splunk (correlation search) --&gt; alert (A) thi giac | (B) Sysmon/web/mang
+        |
+  [PRE-FILTER]  decision = always_analyze(policy.yaml)  OR  p_calibrated &gt;= t
+        |          + dai bat dinh [t - d, t + d]  -&gt; luon gui
+        |          + shadow mode / holdout 5%
+        v
+  (C) = alert goc + pre_filter_decision + pre_filter_reason + pre_filter_proba
+        |
+  Agent (LangGraph)  -- ton 5-15 s / ticket tren Llama 3.1 8B, GPU 8 GB</pre>
+  <div class="deflist">
+    <div class="std-row"><span class="std-k">Vì sao cần</span><span>Chi phí nằm ở LLM: vài tới hơn chục giây mỗi ticket, Reflection nhân đôi số lượt gọi, Ollama xử lý gần như tuần tự. Mỗi phần trăm alert vô hại bị loại là một phần trăm thông lượng tăng thêm.</span></div>
+    <div class="std-row"><span class="std-k">Mục tiêu tối ưu</span><span>Giảm tối đa số alert gửi lên Agent <em>với ràng buộc</em> tỷ lệ bỏ lọt thấp hơn một mức cho trước. Đây là bài toán tối ưu có ràng buộc, không phải tối đa accuracy.</span></div>
+    <div class="std-row"><span class="std-k">Mốc tham chiếu</span><span>Hệ AACT triển khai trong một SOC thật báo cáo giảm 61% alert tới analyst với tỷ lệ bỏ lọt 1,36% (arXiv 2505.09843).</span></div>
+    <div class="std-row"><span class="std-k">Nguyên tắc dữ liệu</span><span>Pre-filter chỉ thêm ba trường, không sửa hay xoá trường nào của alert gốc, để chữ ký HMAC vẫn kiểm lại được và để mọi quyết định truy vết được.</span></div>
+  </div>
+</section>
+
+<section id="p2">
+  <h2><span class="num">02</span>Hiện trạng trong lõi cũ — bộ lọc dựa trên luật</h2>
+  <p>Endpoint <code>/analyze/batch</code> trong <code>api/main.py</code> đã có một bộ lọc ba tầng. Đây là <strong>baseline</strong> để ML Pre-filter phải thắng.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Tầng</th><th>Luật</th><th>Kết quả</th></tr></thead>
+      <tbody>
+        <tr><td>Tier 0</td><td><code>event_type</code> thuộc tập nhiễu: health_check, heartbeat, metric_report, asset_sync, ping, keep_alive</td><td>bỏ</td></tr>
+        <tr><td>Tier 1</td><td>Extractor (regex, heuristic, ~0,1 s) có attack indicator; hoặc <code>event_type</code> thuộc tập luôn phân tích (auth_success, login_success, auth_attempt, login_attempt, rag_integrity_violation); hoặc IP có lịch sử HIGH/CRITICAL; hoặc IP đã xuất hiện trước đó</td><td>gửi LLM</td></tr>
+        <tr><td>—</td><td>không thoả điều kiện nào</td><td>CLEAN, bỏ</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="decision warn">
+    <h4>Giới hạn của baseline</h4>
+    <p>Quyết định là nhị phân cứng, không có điểm số nên không chỉnh được đánh đổi giữa lượng alert và bỏ lọt. Điều kiện "IP đã xuất hiện trước đó thì luôn gửi" làm bộ lọc mất tác dụng với lưu lượng lặp lại từ máy lành. Và không có cơ chế đo tỷ lệ bỏ lọt sau khi triển khai. ML Pre-filter giữ lại các luật chắc chắn ở cửa always_analyze, thay phần còn lại bằng một model có xác suất đã hiệu chuẩn.</p>
+  </div>
+</section>
+
+<section id="p3">
+  <h2><span class="num">03</span>Dữ liệu và nhãn</h2>
+  <div class="deflist">
+    <div class="std-row"><span class="std-k">Đơn vị mẫu</span><span>Một alert sau correlation search của Splunk (không phải một dòng log thô), có <code>alert_id</code>, <code>device_id</code>, <code>timestamp</code>, <code>rule_name</code>.</span></div>
+    <div class="std-row"><span class="std-k">Nhãn</span><span><code>y = 1</code>: alert sinh ra trong khoảng thời gian và trên máy mà một kỹ thuật tấn công được chạy có chủ đích, hoặc analyst xác nhận cần điều tra. <code>y = 0</code>: alert sinh ra từ hoạt động lành đã ghi nhận.</span></div>
+    <div class="std-row"><span class="std-k">Nguồn độc</span><span>Chạy Atomic Red Team trên VM nạn nhân, mỗi lần chạy ghi <code>run_id</code>, mã kỹ thuật, máy, thời điểm bắt đầu và kết thúc; nhãn gán tự động theo cửa sổ đó. Bổ sung bộ công khai splunk/attack_data và EVTX-ATTACK-SAMPLES, mỗi tệp đã gắn với một kỹ thuật ATT&amp;CK.</span></div>
+    <div class="std-row"><span class="std-k">Nguồn lành</span><span>Ghi nhiều ngày hoạt động bình thường: cập nhật Windows, cài phần mềm, script quản trị, quét của IT, người dùng duyệt web. Phần này quyết định chất lượng: lành quá "sạch" thì model học dễ và ra số đẹp giả.</span></div>
+    <div class="std-row"><span class="std-k">Không dùng</span><span><code>training_data/pending_review.jsonl</code> (1.048 mẫu) vì nhãn do LLM sinh, chưa người duyệt. IoT-23, N-BaIoT vì là network flow, sai loại dữ liệu với telemetry máy chủ.</span></div>
+    <div class="std-row"><span class="std-k">Quy mô tối thiểu</span><span>Vài trăm alert độc trải trên ít nhất 15–20 kỹ thuật, và số alert lành gấp nhiều lần. Ít hơn thì dùng Random Forest và báo cáo khoảng tin cậy.</span></div>
+    <div class="std-row"><span class="std-k">Nhiễu nhãn</span><span>Trong cửa sổ chạy tấn công vẫn có alert lành xen vào. Lọc bằng luật đơn giản (alert phải liên quan tiến trình/IP của lần chạy) và kiểm tay một mẫu ngẫu nhiên, ghi tỷ lệ nhãn sai ước lượng vào báo cáo.</span></div>
+  </div>
+</section>
+
+<section id="p4">
+  <h2><span class="num">04</span>Đặc trưng</h2>
+  <p>Mọi đặc trưng phải tính được <strong>tại thời điểm alert tới</strong>, chỉ từ dữ liệu quá khứ. Chốt danh sách trước khi train, vì thêm hay bớt cột sau là phải train lại.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Đặc trưng</th><th>Kiểu</th><th>Cách tính</th><th>Tín hiệu</th></tr></thead>
+      <tbody>
+        <tr><td><code>has_sigma_match</code></td><td>nhị phân</td><td>alert có khớp luật Sigma không</td><td>có luật chuyên biệt bắn</td></tr>
+        <tr><td><code>sigma_level</code></td><td>thứ bậc 0–4</td><td>informational → critical</td><td>mức độ tác giả luật đánh giá</td></tr>
+        <tr><td><code>severity_id</code>, <code>confidence_id</code></td><td>thứ bậc</td><td>trường chuẩn hoá kiểu OCSF</td><td>đánh giá của nguồn</td></tr>
+        <tr><td><code>event_id</code></td><td>one-hot</td><td>Sysmon EID 1, 3, 7, 8, 10, 11, 13, 22…</td><td>loại hành vi</td></tr>
+        <tr><td><code>rule_freq_5m</code>, <code>rule_freq_24h</code></td><td>số đếm</td><td>số alert cùng luật trên cùng máy trong cửa sổ trượt</td><td>bùng nổ bất thường hay nhiễu thường trực</td></tr>
+        <tr><td><code>rule_rarity</code></td><td>thực</td><td>−log tần suất của luật trên toàn bộ baseline lành</td><td>luật hiếm bắn thì đáng chú ý hơn</td></tr>
+        <tr><td><code>cmdline_len</code>, <code>cmdline_entropy</code></td><td>thực</td><td>độ dài và entropy Shannon của dòng lệnh</td><td>dòng lệnh bị mã hoá, làm rối</td></tr>
+        <tr><td><code>b64_ratio</code></td><td>thực</td><td>tỷ lệ ký tự thuộc chuỗi giống base64 dài</td><td>payload mã hoá</td></tr>
+        <tr><td><code>parent_child_rarity</code></td><td>thực</td><td>độ hiếm của cặp tiến trình cha–con trên baseline</td><td>quan hệ tiến trình lạ</td></tr>
+        <tr><td><code>path_unusual</code></td><td>nhị phân</td><td>tệp chạy ngoài thư mục hệ thống/Program Files</td><td>vị trí bất thường</td></tr>
+        <tr><td><code>is_signed</code></td><td>nhị phân</td><td>trạng thái chữ ký số của image</td><td>tệp không ký</td></tr>
+        <tr><td><code>ip_history_score</code></td><td>thực</td><td>tổng có trọng số các alert trước đó của IP, suy giảm theo thời gian</td><td>tác nhân có tiền sử</td></tr>
+        <tr><td><code>ip_reputation</code></td><td>thực</td><td>điểm AbuseIPDB (có cache, thiếu thì −1)</td><td>danh tiếng ngoài</td></tr>
+        <tr><td><code>off_hours</code></td><td>nhị phân</td><td>ngoài giờ làm việc theo lịch của tài sản</td><td>thời điểm bất thường</td></tr>
+        <tr><td><code>asset_criticality</code></td><td>thứ bậc</td><td>từ <code>asset_inventory.yaml</code></td><td>giá trị mục tiêu</td></tr>
+        <tr><td><code>co_alert_cheo_nhanh</code></td><td>nhị phân</td><td>có alert thị giác cùng <code>device_id</code> trong ±60 s trước đó</td><td>nhân chứng thứ hai (tuỳ chọn, đo riêng)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Không đưa chuỗi thô, tên máy hay địa chỉ IP làm đặc trưng: model sẽ học thuộc danh tính của lab thay vì hành vi, và không tổng quát sang môi trường khác.</p>
+</section>
+
+<section id="p5">
+  <h2><span class="num">05</span>Chia dữ liệu và chống rò rỉ</h2>
+  <p>Chia ngẫu nhiên từng alert là sai: các alert của cùng một lần chạy tấn công rất giống nhau, rơi vào cả train lẫn test làm kết quả đẹp giả tạo. Dùng hai tầng chia:</p>
+  <div class="deflist">
+    <div class="std-row"><span class="std-k">Holdout theo thời gian</span><span>20% dữ liệu thu sau cùng (theo <code>timestamp</code>) để riêng, chỉ dùng một lần cho số cuối cùng. Mô phỏng đúng tình huống model train trên quá khứ, chạy trên tương lai.</span></div>
+    <div class="std-row"><span class="std-k">CV theo nhóm</span><span>Trên 80% còn lại, <code>StratifiedGroupKFold(n_splits=5)</code> với <code>groups = run_id</code> (alert lành gom theo ngày). Giữ tỷ lệ lớp và đảm bảo một lần chạy không bị chia đôi.</span></div>
+    <div class="std-row"><span class="std-k">Tổng quát theo kỹ thuật</span><span>Thêm một thí nghiệm leave-technique-out: bỏ hẳn một nhóm kỹ thuật khỏi train, đo recall trên chính nhóm đó. Trả lời câu "model có bắt được kỹ thuật chưa thấy không".</span></div>
+    <div class="std-row"><span class="std-k">Tiền xử lý trong fold</span><span>Mọi thống kê học từ dữ liệu (độ hiếm, chuẩn hoá) tính trong <code>Pipeline</code> trên phần train của từng fold, không tính trên toàn bộ trước khi chia.</span></div>
+  </div>
+</section>
+
+<section id="p6">
+  <h2><span class="num">06</span>Model, huấn luyện và chọn model</h2>
+  <p>Ba ứng viên, đều cho xác suất và giải thích được: Logistic Regression làm mốc tuyến tính, Random Forest (bagging, bền với dữ liệu nhỏ và nhiễu, gần như không cần tune), LightGBM (boosting, mạnh hơn khi dữ liệu đủ, dễ overfit nếu để mặc định vì mặc định tối ưu cho dữ liệu lớn). XGBoost cùng họ boosting với LightGBM nên không đưa vào vòng đầu.</p>
+  <pre class="code">from sklearn.model_selection import StratifiedGroupKFold, cross_validate
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+import lightgbm as lgb
+
+candidates = {
+    "logreg": make_pipeline(StandardScaler(),
+                LogisticRegression(class_weight="balanced", max_iter=2000)),
+    "rf":     RandomForestClassifier(n_estimators=400, min_samples_leaf=2,
+                class_weight="balanced_subsample", n_jobs=-1, random_state=42),
+    "lgbm":   lgb.LGBMClassifier(n_estimators=400, learning_rate=0.05,
+                num_leaves=15, min_child_samples=20,           # chong overfit du lieu nho
+                subsample=0.8, subsample_freq=1, colsample_bytree=0.8,
+                class_weight="balanced", random_state=42),
+}
+cv = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
+splits = list(cv.split(X_dev, y_dev, groups=g_dev))           # groups = run_id / ngay
+
+for name, model in candidates.items():
+    res = cross_validate(model, X_dev, y_dev, cv=splits,
+                         scoring={"ap": "average_precision", "recall": "recall"})
+    print(name, res["test_ap"].mean(), res["test_recall"].mean())</pre>
+  <div class="deflist">
+    <div class="std-row"><span class="std-k">Mất cân bằng lớp</span><span>dùng trọng số lớp (<code>class_weight</code>) thay vì SMOTE; oversampling tổng hợp trên đặc trưng log dễ tạo mẫu không tồn tại ngoài đời.</span></div>
+    <div class="std-row"><span class="std-k">Tiêu chí chọn</span><span>PR-AUC (average precision) trên CV làm chỉ số xếp hạng, vì nó không phụ thuộc ngưỡng và phản ánh đúng lớp hiếm. Sau đó so ở ngưỡng vận hành: tỷ lệ giảm alert khi recall lớp độc ≥ mục tiêu. Hoà thì chọn model đơn giản hơn.</span></div>
+    <div class="std-row"><span class="std-k">Không kịp bake-off</span><span>dùng Random Forest trước vì ít rủi ro overfit nhất trên dữ liệu nhỏ.</span></div>
+    <div class="std-row"><span class="std-k">Giải thích</span><span>permutation importance trên holdout (đáng tin hơn impurity importance của cây), kèm SHAP cho vài alert tiêu biểu để đưa vào báo cáo.</span></div>
+  </div>
+</section>
+
+<section id="p7">
+  <h2><span class="num">07</span>Hiệu chuẩn xác suất và chọn ngưỡng</h2>
+  <p>Xác suất thô của cây thường lệch: 0,9 không có nghĩa 90% là độc. Chưa hiệu chuẩn thì mọi ngưỡng tính theo chi phí đều sai. Hiệu chuẩn bằng isotonic regression cho RF/LightGBM (cần đủ dữ liệu), Platt scaling (sigmoid) cho Logistic Regression hoặc khi dữ liệu ít; kiểm bằng Brier score và reliability diagram.</p>
+  <pre class="code">from sklearn.calibration import CalibratedClassifierCV
+from sklearn.metrics import precision_recall_curve, brier_score_loss
+import numpy as np
+
+calibrated = CalibratedClassifierCV(estimator=best_model, method="isotonic", cv=splits)
+calibrated.fit(X_dev, y_dev)
+p_hold = calibrated.predict_proba(X_hold)[:, 1]
+print("Brier:", brier_score_loss(y_hold, p_hold))
+
+def cost_threshold(c_fp=1.0, c_fn=10.0):            # t = C_FP / (C_FP + C_FN)
+    return c_fp / (c_fp + c_fn)                      # 10:1 -&gt; ~0.091
+
+def recall_threshold(y, p, target=0.98):            # nguong cao nhat van dat recall muc tieu
+    prec, rec, thr = precision_recall_curve(y, p)   # chon tren tap dev (OOF), khong tren holdout
+    ok = np.where(rec[:-1] &gt;= target)[0]
+    return float(thr[ok[-1]])
+
+# p_oof = cross_val_predict(calibrated_model, X_dev, y_dev, cv=splits, method="predict_proba")[:, 1]
+t = min(cost_threshold(), recall_threshold(y_dev, p_oof))    # lay nguong than trong hon
+band = 0.05                                                  # [t - band, t) -&gt; luon gui</pre>
+  <div class="deflist">
+    <div class="std-row"><span class="std-k">Ngưỡng chi phí</span><span>gán <code>C_FN</code> là chi phí một lần bỏ lọt, <code>C_FP</code> là chi phí gửi nhầm một alert lành (một lượt LLM). Quyết định Bayes tối ưu là gửi khi p ≥ C_FP / (C_FP + C_FN). Tỷ lệ 10:1 cho ngưỡng khoảng 0,09.</span></div>
+    <div class="std-row"><span class="std-k">Ngưỡng theo recall</span><span>ràng buộc vận hành: chọn ngưỡng cao nhất mà recall trên dự đoán out-of-fold vẫn ≥ mục tiêu (ví dụ 0,98). Lấy ngưỡng thấp hơn trong hai cách.</span></div>
+    <div class="std-row"><span class="std-k">Dải bất định</span><span>alert có p nằm sát dưới ngưỡng luôn được gửi, vì đây là vùng model hay sai nhất.</span></div>
+    <div class="std-row"><span class="std-k">Bằng chứng từ tài liệu</span><span>trên UNSW-NB15 với tỷ lệ 10:1, hiệu chuẩn cộng ngưỡng theo chi phí giảm số ca bỏ lọt của Logistic Regression từ 23.693 xuống 2.286 và của Random Forest từ 27.400 xuống 77; hiệu chuẩn mà đặt ngưỡng lệch thì còn tệ hơn baseline (arXiv 2601.04486).</span></div>
+  </div>
+</section>
+
+<section id="p8">
+  <h2><span class="num">08</span>Tích hợp vào pipeline</h2>
+  <p>Pre-filter là một hàm Python trong service FastAPI, chạy trước khi gọi LangGraph, thay cho Tier 1 hiện tại. Luật chắc chắn nằm trong file chính sách YAML, không viết cứng trong code.</p>
+  <pre class="code"># configs/prefilter_policy.yaml
+mode: shadow                    # shadow | enforce
+threshold: 0.09
+uncertain_band: 0.05
+holdout_rate: 0.05
+model_path: models/prefilter_rf_v1.joblib
+model_sha256: "&lt;hash ghi luc train&gt;"
+drop_event_types: [health_check, heartbeat, metric_report, keep_alive]
+always_analyze:
+  - {field: severity_id, op: "&gt;=", value: 4}
+  - {all: [{field: source, op: "==", value: vision}, {field: confidence_id, op: "&gt;=", value: 2}]}
+  - {field: event_type, op: in, value: [auth_success, login_success, rag_integrity_violation]}
+  - {field: ip_has_high_history, op: "==", value: true}</pre>
+  <pre class="code">def decide(alert, cfg, model, rng):
+    if alert["event_type"] in cfg["drop_event_types"]:
+        return "dropped", "noise_type", None
+    if matches_any(alert, cfg["always_analyze"]):
+        return "send_to_llm", "always_analyze", None
+    p = float(model.predict_proba([extract_features(alert)])[0, 1])
+    if p &gt;= cfg["threshold"]:
+        return "send_to_llm", "model_proba", p
+    if p &gt;= cfg["threshold"] - cfg["uncertain_band"]:
+        return "send_to_llm", "uncertain_band", p
+    if rng.random() &lt; cfg["holdout_rate"]:
+        return "send_to_llm", "holdout_sample", p     # mau doi chung de do bo lot
+    return "dropped", "below_threshold", p
+
+def prefilter(alert, cfg, model, rng):
+    decision, reason, p = decide(alert, cfg, model, rng)
+    out = {**alert, "pre_filter_decision": decision, "pre_filter_reason": reason,
+           "pre_filter_proba": p, "pre_filter_model": cfg["model_path"]}
+    log_to_splunk_hec(out)                             # moi quyet dinh deu duoc ghi
+    if cfg["mode"] == "shadow":
+        return out, True                               # shadow: van gui moi alert
+    return out, decision == "send_to_llm"</pre>
+  <div class="deflist">
+    <div class="std-row"><span class="std-k">Toàn vẹn model</span><span><code>joblib</code> dùng pickle, nạp tệp lạ có thể chạy mã tuỳ ý. Ghi SHA-256 của tệp model lúc train, kiểm trước khi nạp, để tệp ở thư mục chỉ đọc.</span></div>
+    <div class="std-row"><span class="std-k">Độ trễ</span><span>trích đặc trưng và <code>predict_proba</code> của RF cỡ mili-giây, không đáng kể so với một lượt LLM.</span></div>
+    <div class="std-row"><span class="std-k">Truy vết</span><span>bốn trường <code>pre_filter_*</code> đi theo alert vào ticket (<code>alert_goc</code>) và về Splunk, đủ để dựng dashboard và mọi bảng đo ở mục 10.</span></div>
+  </div>
+</section>
+
+<section id="p9">
+  <h2><span class="num">09</span>Triển khai theo giai đoạn và giám sát</h2>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Giai đoạn</th><th>Hệ thống làm gì</th><th>Đo gì</th><th>Điều kiện qua giai đoạn</th></tr></thead>
+      <tbody>
+        <tr><td>0 · Offline</td><td>CV + holdout theo thời gian</td><td>PR-AUC, recall, tỷ lệ giảm alert, Brier</td><td>thắng baseline luật ở cùng recall</td></tr>
+        <tr><td>1 · Shadow</td><td>tính quyết định, ghi log, vẫn gửi mọi alert</td><td>tỷ lệ "sẽ bị loại"; trong số đó bao nhiêu được Agent/analyst xác nhận độc</td><td>không có alert độc quan trọng nào bị "sẽ loại"</td></tr>
+        <tr><td>2 · Enforce</td><td>loại thật, giữ 5% mẫu ngẫu nhiên trong số bị loại vẫn gửi</td><td>ước lượng bỏ lọt liên tục (công thức dưới)</td><td>—</td></tr>
+        <tr><td>3 · Giám sát</td><td>theo dõi trôi phân phối đặc trưng và điểm số</td><td>PSI từng đặc trưng, phân phối p theo tuần, tỷ lệ bỏ lọt ước lượng</td><td>vượt ngưỡng → về shadow, train lại</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <pre class="code">D  = so alert bi loai trong ky;   H = mau holdout (~5% cua D, van duoc gui len Agent)
+p_hat          = (so alert doc duoc xac nhan trong H) / |H|
+bo_lot_uoc_luong = p_hat * (|D| - |H|)
+ty_le_bo_lot     = bo_lot_uoc_luong / (bo_lot_uoc_luong + so alert doc da duoc gui)
+# bao cao kem khoang tin cay Wilson cho p_hat vi |H| nho</pre>
+  <p>Vì holdout được chọn ngẫu nhiên đều trong tập bị loại, <code>p_hat</code> là ước lượng không thiên lệch của tỷ lệ độc trong phần bị loại. Rollback chỉ là đổi <code>mode</code> trong YAML về <code>shadow</code>, không cần triển khai lại code.</p>
+</section>
+
+<section id="p10">
+  <h2><span class="num">10</span>Các bảng số phải ra và câu trả lời phỏng vấn</h2>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Bảng</th><th>Hàng</th><th>Cột</th></tr></thead>
+      <tbody>
+        <tr><td>1 · Bake-off</td><td>LogReg, RF, LightGBM</td><td>PR-AUC và recall trung bình ± độ lệch trên 5 fold</td></tr>
+        <tr><td>2 · Vận hành</td><td>luật cũ; model ngưỡng 0,5; model hiệu chuẩn + ngưỡng chi phí</td><td>tỷ lệ giảm alert, recall, tỷ lệ bỏ lọt, trên holdout thời gian</td></tr>
+        <tr><td>3 · Hiệu chuẩn</td><td>trước/sau</td><td>Brier score, biểu đồ reliability</td></tr>
+        <tr><td>4 · Tổng quát</td><td>từng nhóm kỹ thuật bị bỏ khỏi train</td><td>recall trên nhóm đó</td></tr>
+        <tr><td>5 · Chịu tải</td><td>bật/tắt Pre-filter</td><td>alert/giây xử lý được, độ trễ p95 tới lúc có kết luận</td></tr>
+        <tr><td>6 · Tín hiệu chéo nhánh</td><td>có/không <code>co_alert_cheo_nhanh</code></td><td>recall lớp độc ở cùng tỷ lệ giảm alert</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="say">
+    <span class="say-l">Trả lời mẫu — "Em thiết lập ML Pre-filter thế nào?"</span>
+    <p>"Pre-filter giải bài toán nhị phân: alert có đáng tốn một lượt LLM không, vì LLM là nút thắt của hệ. Nó là một OR-gate: các trường hợp chắc chắn như severity cao, alert thị giác đã xác nhận, đăng nhập thành công từ IP có tiền sử thì luôn gửi theo bảng chính sách YAML; phần còn lại do model cây chấm xác suất. Dữ liệu độc em sinh bằng Atomic Red Team có ghi run_id và cửa sổ thời gian để gán nhãn tự động, cộng splunk/attack_data; dữ liệu lành là nhiều ngày hoạt động bình thường. Đặc trưng là các tín hiệu hành vi tính được tại thời điểm alert: khớp Sigma, mức luật, tần suất trong cửa sổ trượt, độ hiếm của luật và cặp tiến trình cha–con, entropy dòng lệnh, lịch sử và danh tiếng IP, mức quan trọng tài sản."</p>
+    <p>"Em chia dữ liệu theo thời gian và theo lần chạy tấn công bằng StratifiedGroupKFold để tránh rò rỉ, bake-off Logistic Regression, Random Forest và LightGBM theo PR-AUC và recall lớp độc. Model thắng được hiệu chuẩn bằng isotonic regression, ngưỡng lấy theo chi phí C_FP / (C_FP + C_FN) và ràng buộc recall, cộng một dải bất định luôn gửi. Triển khai em chạy shadow mode trước, sau đó bật thật nhưng giữ 5% mẫu ngẫu nhiên trong số bị loại để ước lượng không thiên lệch tỷ lệ bỏ lọt, đối chiếu mốc 1,36% của hệ AACT. Baseline để so là bộ lọc ba tầng dựa trên luật trong lõi cũ."</p>
+  </div>
+</section>
+
+<div class="part"><p class="pk">Phần hai</p><p class="pt">Embedding, chunking và RAG</p></div>
+
+<section id="p11">
+  <h2><span class="num">11</span>Embedding — các họ phương pháp và cái đang dùng</h2>
+  <p>Embedding biến một đoạn văn bản thành vector sao cho hai đoạn cùng nghĩa có vector gần nhau. Chất lượng truy hồi của RAG phụ thuộc trước hết vào lựa chọn này.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Họ</th><th>Cơ chế</th><th>Ví dụ</th><th>Mạnh</th><th>Yếu</th></tr></thead>
+      <tbody>
+        <tr><td>Thưa, theo từ vựng</td><td>vector kích thước bằng từ điển, trọng số theo tần suất</td><td>TF-IDF, BM25</td><td>khớp chính xác mã, tên (T1078, <code>rundll32.exe</code>), không cần train</td><td>không hiểu từ đồng nghĩa, cách diễn đạt khác</td></tr>
+        <tr><td>Thưa, học được</td><td>model dự đoán trọng số và mở rộng từ liên quan</td><td>SPLADE</td><td>giữ khả năng khớp từ, thêm chút ngữ nghĩa</td><td>cần model, ít công cụ hơn</td></tr>
+        <tr><td>Từ tĩnh</td><td>mỗi từ một vector cố định, câu = trung bình</td><td>word2vec, GloVe, fastText</td><td>rất nhẹ</td><td>không phụ thuộc ngữ cảnh, câu dài bị nhoè nghĩa</td></tr>
+        <tr><td>Dense bi-encoder</td><td>transformer mã hoá cả câu thành một vector (pooling), train bằng học tương phản trên cặp câu</td><td>Sentence-BERT: all-MiniLM-L6-v2, all-mpnet-base-v2; e5, bge, gte; đa ngôn ngữ: multilingual-e5, bge-m3</td><td>hiểu ngữ nghĩa, truy vấn nhanh qua chỉ mục ANN</td><td>kém với định danh; giới hạn độ dài đầu vào</td></tr>
+        <tr><td>Đa vector (late interaction)</td><td>mỗi token một vector, điểm = tổng MaxSim giữa token truy vấn và tài liệu</td><td>ColBERT</td><td>chính xác gần cross-encoder</td><td>lưu trữ lớn hơn nhiều</td></tr>
+        <tr><td>Cross-encoder</td><td>đưa cặp (truy vấn, tài liệu) vào cùng một model, ra điểm liên quan; không tạo vector để lưu</td><td>ms-marco-MiniLM-L-6-v2, bge-reranker</td><td>chính xác nhất</td><td>chậm, chỉ dùng để rerank vài chục ứng viên</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="deflist">
+    <div class="std-row"><span class="std-k">Đo khoảng cách</span><span>cosine, tích vô hướng hoặc L2. Với vector đã chuẩn hoá L2, ba cách cho cùng thứ hạng. ChromaDB dùng chỉ mục HNSW (tìm láng giềng gần xấp xỉ), không gian mặc định là L2.</span></div>
+    <div class="std-row"><span class="std-k">Kỹ thuật đi kèm</span><span>Matryoshka embedding (cắt bớt chiều vẫn dùng được), tiền tố chỉ dẫn kiểu <code>query:</code> / <code>passage:</code> của e5. So sánh chung trên MTEB, nhưng quyết định cuối phải dựa trên recall@k với truy vấn thật của mình.</span></div>
+    <div class="std-row"><span class="std-k">Đổi model</span><span>vector của hai model khác nhau không so được với nhau: đổi model là phải nhúng lại toàn bộ corpus. Vì vậy metadata ghi tên embedding model cho từng chunk.</span></div>
+  </div>
+
+  <h3>Đang dùng: all-MiniLM-L6-v2</h3>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Thuộc tính</th><th>Giá trị</th></tr></thead>
+      <tbody>
+        <tr><td>Kiến trúc</td><td>MiniLM 6 layer, hidden 384, khoảng 22,7 triệu tham số; mean pooling rồi chuẩn hoá L2</td></tr>
+        <tr><td>Đầu ra</td><td>vector 384 chiều</td></tr>
+        <tr><td>Độ dài</td><td>train với chuỗi 128 token; mặc định cắt ở 256 word piece</td></tr>
+        <tr><td>Dữ liệu train</td><td>hơn 1 tỷ cặp câu, học tương phản; chủ yếu tiếng Anh</td></tr>
+        <tr><td>Trong code</td><td><code>HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")</code> ở <code>rag_engine/ingest.py</code> và <code>retriever.py</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Lý do chọn: nhỏ, chạy CPU nhanh, không tranh VRAM với Llama, đủ tốt cho văn bản MITRE tiếng Anh. Giới hạn: đơn ngữ nên lệch khi truy vấn hoặc tài liệu có tiếng Việt (phần bọc tiếng Việt quanh luật Sigma); cắt ở 256 word piece; và như mọi dense model, yếu với chuỗi định danh. Hai hướng nâng: giữ MiniLM và thêm BM25 để làm hybrid (rẻ nhất), hoặc chuyển sang bge-m3 — đa ngôn ngữ trên 100 thứ tiếng, 1024 chiều, đầu vào tới 8192 token, cho cả vector dense, trọng số thưa và đa vector trong một model — đổi lại nặng hơn MiniLM hơn hai mươi lần vì dựa trên XLM-RoBERTa large.</p>
+</section>
+
+<section id="p12">
+  <h2><span class="num">12</span>Chunking — các chiến lược và cái đang dùng</h2>
+  <p>Chunk quá lớn thì một vector phải đại diện nhiều ý nên nhoè nghĩa, và đưa nhiều chữ thừa vào prompt. Chunk quá nhỏ thì mất ngữ cảnh. Kích thước chunk còn bị chặn trên bởi độ dài tối đa của embedding model; phần vượt quá bị cắt khi nhúng mà không báo.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Chiến lược</th><th>Cách làm</th><th>Hợp với</th></tr></thead>
+      <tbody>
+        <tr><td>Cố định</td><td>cắt mỗi N ký tự hoặc N token</td><td>văn bản không cấu trúc, làm nhanh</td></tr>
+        <tr><td>Cố định có chồng lấn</td><td>các chunk gối lên nhau một đoạn để không mất ý ở ranh giới</td><td>mặc định an toàn</td></tr>
+        <tr><td>Đệ quy theo ký tự phân tách</td><td>thử tách theo <code>\n\n</code>, rồi <code>\n</code>, rồi dấu cách, cho tới khi vừa kích thước</td><td>văn bản có đoạn văn</td></tr>
+        <tr><td>Theo câu, đoạn</td><td>tách bằng bộ tách câu</td><td>văn xuôi</td></tr>
+        <tr><td>Theo cấu trúc tài liệu</td><td>theo heading markdown/HTML, theo hàm trong code, theo bản ghi (mỗi kỹ thuật một đơn vị)</td><td>tài liệu có cấu trúc rõ như MITRE, Sigma</td></tr>
+        <tr><td>Ngữ nghĩa</td><td>nhúng từng câu, cắt ở chỗ độ tương đồng giữa hai câu liền kề giảm mạnh</td><td>văn bản dài nhiều chủ đề</td></tr>
+        <tr><td>Cha–con (small-to-big)</td><td>tìm trên chunk nhỏ cho chính xác, đưa chunk cha lớn cho LLM đọc</td><td>cần cả độ chính xác lẫn ngữ cảnh</td></tr>
+        <tr><td>Contextual retrieval</td><td>trước khi nhúng, gắn vào mỗi chunk một câu tóm tắt ngữ cảnh của nó trong tài liệu gốc</td><td>chunk đứng một mình dễ mất nghĩa</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Số liệu tham khảo cho contextual retrieval (Anthropic, đo bằng tỷ lệ truy hồi thất bại trong top-20): chỉ nhúng có ngữ cảnh giảm từ 5,7% xuống 3,7%; thêm BM25 có ngữ cảnh xuống 2,9%; thêm rerank xuống 1,9%.</p>
+
+  <h3>Đang dùng</h3>
+  <pre class="code">1. Moi ky thuat ATT&amp;CK (khong revoked/deprecated) -&gt; 1 Document:
+     Technique: &lt;ten&gt; (&lt;ID&gt;) | Tactics | Platforms | Data Sources | Description | Mitigations
+     (mitigation lay qua quan he STIX "mitigates")
+   Moi luat Sigma -&gt; 1 Document: phan boc mo ta + YAML goc
+2. RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)    # tinh theo ky tu
+3. metadata cua Document chep sang moi chunk; list -&gt; chuoi (Chroma chi nhan gia tri vo huong)
+4. chunk_id = sha256(page_content + str(metadata))  -&gt; nap lai khong trung, tai lap duoc
+Ket qua: 7.720 chunk = 6.994 MITRE + 725 Sigma</pre>
+  <p>800 ký tự tiếng Anh tương đương khoảng 150–200 token, nằm dưới giới hạn 256 của MiniLM, nên kích thước là hợp lý. Chỗ yếu: một kỹ thuật dài bị cắt thành nhiều chunk, các chunk phía sau (ví dụ chỉ còn phần Mitigations) không còn tên và mã kỹ thuật trong nội dung được nhúng, dù metadata vẫn giữ. Với Sigma, nhúng thẳng YAML đưa cả tên trường vào vector và làm nhiễu. Cách sửa không tốn LLM: giữ một kỹ thuật làm tài liệu cha, và gắn tiền tố cố định "Technique T1190 · Exploit Public-Facing Application · Initial Access" vào đầu mọi chunk con trước khi nhúng; với Sigma, dựng lại văn bản từ <code>title</code>, <code>description</code>, từ khoá trong <code>detection</code> và <code>tags</code> thay vì YAML thô.</p>
+</section>
+
+<section id="p13">
+  <h2><span class="num">13</span>RAG — kiến trúc, cấu hình hiện tại, cách đo và lộ trình nâng</h2>
+  <pre class="code">NAP (offline):  tai lieu -&gt; lam sach -&gt; chunk -&gt; embedding -&gt; vector DB + metadata
+TRUY VAN:       alert -&gt; dung truy van -&gt; truy hoi (loc metadata) -&gt; rerank / loc -&gt; lap ngu canh
+                -&gt; LLM sinh ket luan co trich dan -&gt; kiem tra dau ra</pre>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Thế hệ (Gao et al.)</th><th>Đặc điểm</th><th>Kỹ thuật tiêu biểu</th></tr></thead>
+      <tbody>
+        <tr><td>Naive RAG</td><td>một lượt, một chiều: nhúng truy vấn, lấy top-k, nhét vào prompt</td><td>—</td></tr>
+        <tr><td>Advanced RAG</td><td>thêm xử lý trước và sau truy hồi</td><td>trước: viết lại truy vấn, multi-query, HyDE · trong: hybrid search, lọc metadata · sau: rerank bằng cross-encoder, nén ngữ cảnh</td></tr>
+        <tr><td>Modular / Agentic RAG</td><td>truy hồi thành công cụ, agent tự quyết gọi hay không, gọi mấy lần, có vòng tự kiểm</td><td>Self-RAG, Corrective RAG, truy hồi nhiều bước có giới hạn vòng</td></tr>
+        <tr><td>GraphRAG</td><td>dựng đồ thị thực thể–quan hệ, truy vấn theo quan hệ</td><td>khi câu hỏi cần đi nhiều bước qua quan hệ (kỹ thuật ↔ nhóm tấn công ↔ phần mềm)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Cấu hình hiện tại trong <code>KMA_AI_AGENT</code></h3>
+  <div class="deflist">
+    <div class="std-row"><span class="std-k">Dựng truy vấn</span><span><code>message</code> của log + IP + domain + port, nối bằng <code>" | "</code>, chuyển chữ thường.</span></div>
+    <div class="std-row"><span class="std-k">Truy hồi</span><span>hai lượt <code>similarity_search</code> có filter: k = 2 trong <code>source_type = admin_sigma_rule</code>, k = 5 trong <code>mitre_framework</code>; khoá luồng bằng <code>threading.Lock</code> vì ChromaDB 0.5 không chịu truy cập đồng thời.</span></div>
+    <div class="std-row"><span class="std-k">Xếp hạng</span><span>gộp 7 kết quả, sắp theo <code>trust_score</code> (Sigma 1,0, MITRE 0,8), giữ 3.</span></div>
+    <div class="std-row"><span class="std-k">Lọc</span><span>chỉ nhận nguồn trong danh sách tin cậy, loại tài liệu có metadata đáng ngờ, kẹp trust score bất thường.</span></div>
+    <div class="std-row"><span class="std-k">Lập ngữ cảnh</span><span>mỗi đoạn có tiêu đề gồm nguồn, technique_id và trust score; trust score cao nhất chuyển sang Analyzer để phạt độ tự tin khi thấp.</span></div>
+    <div class="std-row"><span class="std-k">Phân loại</span><span>Naive RAG, có lọc metadata trước và lọc nguồn sau truy hồi.</span></div>
+  </div>
+
+  <h3>Nhận xét kỹ thuật</h3>
+  <p>Đưa IP vào truy vấn dense gần như chỉ thêm nhiễu, vì IP không mang nghĩa với embedding model. Xếp theo trust score thay vì độ liên quan làm hai chỗ Sigma luôn đứng trước, kể cả khi đoạn MITRE liên quan hơn. Không có ngưỡng điểm liên quan nên luôn trả về 3 đoạn, kể cả khi không đoạn nào thật sự liên quan; ngữ cảnh không liên quan là một nguồn gây ảo giác. Và chưa có tìm theo từ khoá cho các chuỗi định danh.</p>
+
+  <h3>Cách đo RAG</h3>
+  <div class="deflist">
+    <div class="std-row"><span class="std-k">Truy hồi</span><span>dựng 50–100 cặp (alert thật → danh sách technique_id đúng). Đo recall@3, recall@10, MRR, nDCG. Đây là bước phải làm trước mọi nâng cấp để biết nâng cấp có tác dụng.</span></div>
+    <div class="std-row"><span class="std-k">Sinh</span><span>faithfulness (kết luận có dựa trên ngữ cảnh không), answer relevance, context precision/recall — bộ chỉ số kiểu RAGAS; kèm kiểm tất định mã MITRE trong kết luận có thuộc tập truy hồi không.</span></div>
+  </div>
+
+  <h3>Lộ trình nâng theo thứ tự chi phí/lợi ích</h3>
+  <ol class="open-list">
+    <li><strong>Bộ đo truy hồi</strong>50–100 truy vấn có đáp án, chạy trước và sau mỗi thay đổi.</li>
+    <li><strong>Dựng truy vấn từ tín hiệu có cấu trúc</strong>dùng <code>event_type</code> và attack indicator của Extractor (ví dụ "sql injection exploit public-facing application"), bỏ IP khỏi truy vấn dense.</li>
+    <li><strong>Hybrid search</strong>BM25 song song với dense, trộn bằng Reciprocal Rank Fusion: điểm = Σ 1 / (k + hạng), thường k = 60.</li>
+    <li><strong>Rerank và ngưỡng liên quan</strong>lấy 20 ứng viên, cross-encoder chấm lại, giữ 3–5 đoạn vượt ngưỡng; trust score dùng để lọc nguồn, không dùng để xếp hạng liên quan.</li>
+    <li><strong>Chunk theo cấu trúc có tiền tố ngữ cảnh</strong>như mục 12.</li>
+    <li><strong>Model nhúng đa ngôn ngữ</strong>nếu corpus hoặc truy vấn có tiếng Việt.</li>
+    <li><strong>Agentic RAG có giới hạn vòng</strong>cho AegisSOC, nơi corpus lớn và câu hỏi mở hơn.</li>
+    <li><strong>GraphRAG</strong>chỉ khi bộ đo cho thấy truy vấn nhiều bước thật sự thất bại.</li>
+  </ol>
+</section>
+
+<section id="p14">
+  <h2><span class="num">14</span>Câu trả lời phỏng vấn — embedding, chunking, RAG</h2>
+  <div class="say">
+    <span class="say-l">"Em dùng embedding gì, vì sao?"</span>
+    <p>"Em dùng all-MiniLM-L6-v2, một bi-encoder họ Sentence-BERT: 6 layer, khoảng 22,7 triệu tham số, mean pooling rồi chuẩn hoá L2, ra vector 384 chiều. Em chọn vì nó nhỏ, chạy CPU nhanh, không tranh VRAM với Llama trên GPU 8 GB, và đủ tốt cho văn bản MITRE tiếng Anh. Hạn chế là đơn ngữ, cắt đầu vào ở 256 word piece và yếu với chuỗi định danh như mã kỹ thuật, nên hướng nâng là thêm BM25 để làm hybrid search, hoặc chuyển sang bge-m3 nếu cần đa ngôn ngữ và ngữ cảnh dài. Đổi model thì phải nhúng lại toàn bộ corpus, nên em ghi tên model vào metadata từng chunk."</p>
+  </div>
+  <div class="say">
+    <span class="say-l">"Em chunk thế nào?"</span>
+    <p>"Em dựng mỗi kỹ thuật ATT&amp;CK thành một tài liệu gồm tên, mã, tactic, platform, data source, mô tả và mitigation lấy qua quan hệ mitigates trong STIX, rồi cắt bằng RecursiveCharacterTextSplitter 800 ký tự, chồng 120. 800 ký tự khoảng 150–200 token, nằm trong giới hạn 256 của model nhúng. ID chunk là SHA-256 của nội dung và metadata nên nạp lại tái lập được. Kho có 7.720 chunk. Điểm em muốn cải thiện là chunk phía sau của một kỹ thuật dài mất tên kỹ thuật trong nội dung được nhúng, nên em sẽ gắn tiền tố ngữ cảnh cố định vào mỗi chunk con."</p>
+  </div>
+  <div class="say">
+    <span class="say-l">"RAG của em thuộc loại nào, đo thế nào?"</span>
+    <p>"Theo phân loại của Gao và cộng sự thì là Naive RAG có lọc metadata: em tìm tách hai luồng Sigma và MITRE, lọc nguồn tin cậy, giữ ba đoạn, và trust score được đưa sang bước phân tích để phạt độ tự tin. Em nhận thấy xếp theo trust score thay vì độ liên quan và thiếu ngưỡng liên quan là hai điểm yếu chính, nên lộ trình là dựng bộ đo recall@k và MRR trước, rồi thêm hybrid search trộn bằng Reciprocal Rank Fusion, cross-encoder rerank có ngưỡng, và chunk theo cấu trúc. Agentic RAG em chỉ dùng cho AegisSOC, có giới hạn số vòng."</p>
+  </div>
+</section>
+
+<footer>
+  <h3>Nguồn</h3>
+  <ul class="src-list">
+    <li>Code <code>KMA_AI_AGENT</code>: <code>api/main.py</code>, <code>rag_engine/ingest.py</code>, <code>rag_engine/retriever.py</code>, <code>agent/nodes/*</code> (đọc 24/09/2026)</li>
+    <li>all-MiniLM-L6-v2 — <a href="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2" target="_blank" rel="noopener">model card</a> · bge-m3 — <a href="https://huggingface.co/BAAI/bge-m3" target="_blank" rel="noopener">model card</a></li>
+    <li>Contextual Retrieval — <a href="https://www.anthropic.com/engineering/contextual-retrieval" target="_blank" rel="noopener">Anthropic</a></li>
+    <li>Khảo sát RAG, ba thế hệ — <a href="https://arxiv.org/abs/2312.10997" target="_blank" rel="noopener">Gao et al., arXiv 2312.10997</a></li>
+    <li>Hiệu chuẩn và ngưỡng theo chi phí cho phân loại alert — <a href="https://arxiv.org/html/2601.04486" target="_blank" rel="noopener">arXiv 2601.04486</a> · AACT — <a href="https://arxiv.org/abs/2505.09843" target="_blank" rel="noopener">arXiv 2505.09843</a></li>
+    <li>CalibratedClassifierCV — <a href="https://scikit-learn.org/stable/modules/generated/sklearn.calibration.CalibratedClassifierCV.html" target="_blank" rel="noopener">scikit-learn</a></li>
+  </ul>
+</footer>
+
+</body></html>

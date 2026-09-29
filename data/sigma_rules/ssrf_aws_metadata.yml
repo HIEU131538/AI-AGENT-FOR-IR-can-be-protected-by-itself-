@@ -1,0 +1,16 @@
+title: "Phát hiện tấn công SSRF nhắm vào AWS Metadata"
+status: experimental
+description: "Phát hiện hành vi lợi dụng tính năng export PDF để gọi nội bộ đến địa chỉ 169.254.169.254."
+logsource:
+    category: web_app
+detection:
+    selection:
+        message|contains|all:
+            - '/api/v1/tools/export-pdf'
+            - '169.254.169.254'
+    condition: selection
+level: high
+tags:
+    - attack.initial_access
+    - attack.t1190
+    - trust_score: 1.0

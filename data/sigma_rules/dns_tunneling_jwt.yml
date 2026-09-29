@@ -1,0 +1,17 @@
+title: "Phát hiện Tuồn dữ liệu qua DNS (DNS Tunneling)"
+status: experimental
+description: "Phát hiện các truy vấn TXT chứa chuỗi base64 của JWT Token nhằm exfiltrate dữ liệu."
+logsource:
+    category: network
+detection:
+    selection:
+        event_type: 'dns_query'
+        message|contains: 'TXT'
+    payload:
+        message|contains: 'ZXlKa'
+    condition: selection and payload
+level: critical
+tags:
+    - attack.exfiltration
+    - attack.t1048.003
+    - trust_score: 1.0

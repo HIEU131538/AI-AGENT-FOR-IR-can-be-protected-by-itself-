@@ -1,0 +1,14 @@
+title: "Phát hiện tấn công Command Injection qua Netcat"
+status: experimental
+description: "Phát hiện payload nc -e /bin/sh bị chèn vào User-Agent nhằm tạo Reverse Shell."
+logsource:
+    category: webserver
+detection:
+    selection:
+        message|contains: 'nc -e /bin/sh'
+    condition: selection
+level: critical
+tags:
+    - attack.execution
+    - attack.t1059.004
+    - trust_score: 1.0

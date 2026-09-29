@@ -1,0 +1,687 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><title>Sổ phỏng vấn EdgeGuard–AegisSOC</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#F5F7F9; --surface:#FFFFFF; --surface-alt:#EAEEF1; --surface-raised:#FFFFFF;
+    --ink:#142029; --ink-muted:#56646F; --ink-faint:#8695A0; --border:#DBE1E6;
+    --accent:#0E7C86; --accent-strong:#075E66; --accent-soft:#DFF1F1;
+    --warn:#B4650A; --warn-soft:#FBEBD9;
+    --danger:#B23A3A; --danger-soft:#F7E4E2;
+    --good:#2F7D5A; --good-soft:#E1F0E7;
+    --shadow:0 1px 2px rgba(20,32,41,.06), 0 10px 28px -14px rgba(20,32,41,.16);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0F171F; --surface:#16212B; --surface-alt:#1D2933; --surface-raised:#1B2731;
+      --ink:#E7ECEF; --ink-muted:#9FB0BD; --ink-faint:#6E818D; --border:#2A3A44;
+      --accent:#4FD1DB; --accent-strong:#7EE3EA; --accent-soft:rgba(79,209,219,.12);
+      --warn:#E3A63E; --warn-soft:rgba(227,166,62,.14);
+      --danger:#E2827A; --danger-soft:rgba(226,130,122,.14);
+      --good:#6FCB9F; --good-soft:rgba(111,203,159,.14);
+      --shadow:0 1px 2px rgba(0,0,0,.35), 0 10px 28px -14px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0F171F; --surface:#16212B; --surface-alt:#1D2933; --surface-raised:#1B2731;
+    --ink:#E7ECEF; --ink-muted:#9FB0BD; --ink-faint:#6E818D; --border:#2A3A44;
+    --accent:#4FD1DB; --accent-strong:#7EE3EA; --accent-soft:rgba(79,209,219,.12);
+    --warn:#E3A63E; --warn-soft:rgba(227,166,62,.14);
+    --danger:#E2827A; --danger-soft:rgba(226,130,122,.14);
+    --good:#6FCB9F; --good-soft:rgba(111,203,159,.14);
+    --shadow:0 1px 2px rgba(0,0,0,.35), 0 10px 28px -14px rgba(0,0,0,.55);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--ink); margin:0;
+    font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+    font-size:16.5px; line-height:1.6;
+    padding-inline:20px; padding-block:0 48px;
+  }
+  h1,h2,h3,.mono{ font-family:"Archivo",system-ui,sans-serif; }
+  code,pre,.mono-sm{ font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  /* NOTE: IBM Plex Mono drops the accent on Vietnamese double-diacritic vowels (ế, ố, ử, ...),
+     so it is reserved for ASCII-only code/identifiers. All Vietnamese labels below use Archivo. */
+  .chip,.badge,.eyebrow,.card .tag,thead th,tbody td:first-child{ font-family:"Archivo",system-ui,sans-serif; }
+
+  a{ color:var(--accent-strong); }
+  :root[data-theme="dark"] a, :root:not([data-theme="light"]) a{ color:var(--accent); }
+
+  .wrap{ max-width:840px; margin:0 auto; }
+  .wide{ max-width:960px; margin:0 auto; }
+
+  /* header */
+  header.top{
+    max-width:840px; margin:0 auto; padding-top:38px; padding-bottom:22px;
+    border-bottom:1px solid var(--border);
+  }
+  .eyebrow{
+    font-size:12px; letter-spacing:.08em; font-weight:600;
+    text-transform:uppercase; color:var(--accent-strong); margin:0 0 10px;
+  }
+  h1.title{
+    font-size:clamp(28px,5vw,40px); font-weight:800; margin:0 0 10px; line-height:1.12;
+    text-wrap:balance;
+  }
+  p.dek{ font-size:17px; color:var(--ink-muted); margin:0 0 18px; max-width:60ch; }
+
+  .status-strip{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+  .chip{
+    font-size:11.5px; padding:5px 10px; border-radius:99px; border:1px solid var(--border);
+    background:var(--surface-alt); color:var(--ink-muted); white-space:nowrap;
+    display:inline-flex; align-items:center; gap:6px; letter-spacing:.01em;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; display:inline-block; flex:none; }
+  .dot.done{ background:var(--good); }
+  .dot.progress{ background:var(--accent); }
+  .dot.open{ background:var(--warn); }
+  .dot.risk{ background:var(--danger); }
+
+  /* sections */
+  section{ max-width:840px; margin:0 auto; padding-top:44px; }
+  section.figure-section{ max-width:960px; }
+  h2{ font-size:22px; font-weight:700; margin:0 0 6px; letter-spacing:-.01em; }
+  h2 .num{ color:var(--accent-strong); font-family:"IBM Plex Mono",monospace; font-size:14px; margin-right:8px; }
+  .section-note{ color:var(--ink-muted); font-size:14.5px; margin:0 0 20px; max-width:64ch; }
+  h3{ font-size:16.5px; font-weight:700; margin:26px 0 8px; }
+  p{ margin:0 0 14px; }
+  .lede{ font-size:15px; }
+
+  /* badges */
+  .badge{
+    font-size:11px; font-weight:600; padding:3px 8px; border-radius:5px;
+    display:inline-block; letter-spacing:.01em; white-space:nowrap;
+  }
+  .badge.done{ background:var(--good-soft); color:var(--good); }
+  .badge.progress{ background:var(--accent-soft); color:var(--accent-strong); }
+  .badge.open{ background:var(--warn-soft); color:var(--warn); }
+  .badge.risk{ background:var(--danger-soft); color:var(--danger); }
+
+  /* cards */
+  .card-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:18px 0; }
+  @media (max-width:640px){ .card-row{ grid-template-columns:1fr; } }
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:18px 20px; box-shadow:var(--shadow);
+  }
+  .card h3{ margin-top:0; font-size:15.5px; }
+  .card .tag{
+    font-size:10.5px; font-weight:600; color:var(--ink-faint);
+    text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; display:block;
+  }
+  .card ul{ margin:10px 0 0; padding-left:18px; font-size:14.5px; }
+  .card li{ margin-bottom:5px; }
+
+  /* tables */
+  .table-scroll{ overflow-x:auto; margin:14px 0 22px; border:1px solid var(--border); border-radius:10px; }
+  table{ border-collapse:collapse; width:100%; font-size:13.5px; min-width:560px; }
+  thead th{
+    background:var(--surface-alt); text-align:left; font-weight:600; font-size:11.5px;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--ink-muted);
+    padding:9px 12px; border-bottom:1px solid var(--border); white-space:nowrap;
+  }
+  tbody td{ padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:top; font-family:"Source Serif 4",serif; font-size:14px;}
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody td:first-child{ font-size:12.5px; font-weight:600; color:var(--ink-muted); }
+
+  /* code block */
+  pre.code{
+    background:var(--surface-alt); border:1px solid var(--border); border-radius:10px;
+    padding:16px 18px; overflow-x:auto; font-size:12.5px; line-height:1.65; color:var(--ink);
+  }
+  pre.code .k{ color:var(--accent-strong); }
+  pre.code .c{ color:var(--ink-faint); font-style:italic; }
+
+  /* decision boxes */
+  .decision{
+    border:1px solid var(--border); border-left:4px solid var(--accent); border-radius:8px;
+    padding:14px 18px; background:var(--surface); margin:16px 0;
+  }
+  .decision.reco{ border-left-color:var(--good); background:var(--good-soft); }
+  .decision h4{ margin:0 0 6px; font-family:"Archivo",sans-serif; font-size:14px; }
+  .decision p{ margin:0; font-size:14px; }
+
+  .opts{ display:grid; gap:12px; margin:16px 0; }
+  .opt{
+    display:grid; grid-template-columns:28px 1fr; gap:10px; align-items:start;
+    padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--surface);
+  }
+  .opt .letter{
+    font-family:"IBM Plex Mono",monospace; font-weight:700; color:var(--accent-strong);
+    background:var(--accent-soft); border-radius:6px; width:28px; height:28px; display:flex;
+    align-items:center; justify-content:center; font-size:13px;
+  }
+  .opt h4{ margin:0 0 4px; font-family:"Archivo",sans-serif; font-size:14.5px; }
+  .opt p{ margin:0; font-size:14px; color:var(--ink-muted); }
+
+  /* open items list */
+  ol.open-list{ padding-left:0; list-style:none; counter-reset:item; margin:18px 0; }
+  ol.open-list li{
+    counter-increment:item; position:relative; padding:12px 16px 12px 48px;
+    border:1px solid var(--border); border-radius:8px; margin-bottom:10px; background:var(--surface);
+    font-size:14.5px;
+  }
+  ol.open-list li::before{
+    content: counter(item);
+    font-family:"IBM Plex Mono",monospace; font-weight:700; font-size:13px;
+    position:absolute; left:14px; top:12px; color:var(--warn);
+    background:var(--warn-soft); width:22px; height:22px; border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  ol.open-list li strong{ display:block; margin-bottom:2px; font-family:"Archivo",sans-serif; font-size:14.5px;}
+
+  figure{ margin:0; }
+  figcaption{ font-size:13px; color:var(--ink-muted); text-align:center; margin-top:12px; padding:0 12px;}
+  .diagram-wrap{ overflow-x:auto; padding:8px 0; }
+  svg.arch{ display:block; margin:0 auto; max-width:100%; height:auto; min-width:720px; }
+  .node-title{ font-family:"Archivo",sans-serif; font-weight:700; font-size:12.5px; fill:var(--ink); }
+  .node-sub{ font-family:"Archivo",sans-serif; font-weight:500; font-size:9.5px; fill:var(--ink-muted); }
+  .step-num{ font-family:"IBM Plex Mono",monospace; font-weight:700; font-size:11px; fill:var(--accent-strong); }
+  .arrow-label{ font-family:"Archivo",sans-serif; font-weight:500; font-size:9.5px; fill:var(--ink-muted); }
+  .arrow-label.warn-label{ fill:var(--warn); }
+  .box-core{ fill:var(--surface); stroke:var(--ink); stroke-width:1.4; }
+  .box-src{ fill:var(--accent-soft); stroke:var(--accent-strong); stroke-width:1.6; }
+  .box-open{ fill:var(--warn-soft); stroke:var(--warn); stroke-width:1.6; stroke-dasharray:6 4; }
+  .box-good{ fill:var(--good-soft); stroke:var(--good); stroke-width:1.6; }
+  .box-inj{ fill:var(--surface-alt); stroke:var(--ink-faint); stroke-width:1.3; stroke-dasharray:3 3; }
+  .flow-line{ stroke:var(--ink); stroke-width:1.4; fill:none; }
+  .bypass-line{ stroke:var(--ink-faint); stroke-width:1.3; fill:none; stroke-dasharray:4 4; }
+  .step-circle{ fill:var(--surface); stroke:var(--accent-strong); stroke-width:1.4; }
+  .box-attacker{ fill:var(--danger-soft); stroke:var(--danger); stroke-width:1.6; stroke-dasharray:5 3; }
+  .zone-band{ fill:var(--surface-alt); stroke:var(--border); stroke-width:1.3; }
+  .zone-label{ font-family:"Archivo",sans-serif; font-weight:700; font-size:10.5px; letter-spacing:.04em; fill:var(--ink-muted); text-transform:uppercase; }
+  .attack-line{ stroke:var(--danger); stroke-width:1.4; fill:none; stroke-dasharray:5 3; }
+  .attack-label{ font-family:"Archivo",sans-serif; font-weight:600; font-size:9.5px; fill:var(--danger); }
+
+  /* source citations */
+  a.cite{ color:var(--accent-strong); text-decoration:none; font-weight:600; font-size:.88em;
+    border-bottom:1px dotted var(--accent); white-space:nowrap; }
+  a.cite:hover{ border-bottom-style:solid; }
+  .src-list{ list-style:none; padding:0; margin:10px 0 0; font-size:12.5px; color:var(--ink-muted); }
+  .src-list li{ padding:5px 0; border-bottom:1px solid var(--border); }
+  .src-list li:last-child{ border-bottom:none; }
+  .src-list a{ color:var(--accent-strong); text-decoration:none; font-weight:600; }
+  .src-list a:hover{ text-decoration:underline; }
+  /* standards mapping box */
+  .standards{ background:var(--accent-soft); border:1px solid var(--accent); border-radius:12px;
+    padding:16px 18px; margin:18px 0; }
+  .standards h4{ margin:0 0 10px; font-family:"Archivo",sans-serif; font-size:15px; color:var(--accent-strong); }
+  .std-row{ display:grid; grid-template-columns:170px 1fr; gap:6px 14px; align-items:baseline;
+    padding:7px 0; border-top:1px solid var(--border); font-size:14px; }
+  .standards .std-row{ border-top-color:var(--accent); }
+  .std-row:first-of-type{ border-top:none; }
+  .std-k{ font-family:"Archivo",sans-serif; font-weight:700; color:var(--ink); font-size:13.5px; }
+  @media (max-width:560px){ .std-row{ grid-template-columns:1fr; gap:2px; } }
+
+  .legend{ display:flex; flex-wrap:wrap; gap:16px; justify-content:center; margin-top:6px; font-size:12px; color:var(--ink-muted); }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .legend i{ width:14px; height:10px; border-radius:2px; display:inline-block; }
+
+  footer{ max-width:840px; margin:52px auto 0; padding-top:20px; border-top:1px solid var(--border);
+    font-size:12px; color:var(--ink-faint); }
+
+  /* ── Bổ sung riêng cho tài liệu tra cứu dày (file kiến thức) ───────────── */
+
+  /* Nhịp giữa các mục: có đường phân cách rõ + thoáng hơn */
+  section + section{ border-top:1px solid var(--border); padding-top:54px; }
+  h3{ margin:32px 0 10px; }
+  section > p{ max-width:68ch; }
+  .section-note{ margin-bottom:18px; }
+
+  /* Danh sách định nghĩa đứng độc lập — thay cho bảng khi nội dung là văn xuôi */
+  .deflist{ margin:16px 0 24px; }
+  .deflist .std-row{ padding:11px 0; grid-template-columns:186px 1fr; }
+  .deflist .std-row:first-of-type{ border-top:1px solid var(--border); }
+  .deflist .std-k{ color:var(--accent-strong); }
+  @media (max-width:560px){ .deflist .std-row{ grid-template-columns:1fr; gap:3px; } }
+
+  /* Khối "mình đang ở đâu" — nhẹ hơn hộp quyết định, có nhãn riêng */
+  .here{ border-left:3px solid var(--accent); background:var(--surface-alt);
+    border-radius:0 8px 8px 0; padding:14px 17px; margin:18px 0; }
+  .here-label{ font-family:"Archivo",sans-serif; font-size:10.5px; font-weight:700;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--accent-strong);
+    display:block; margin-bottom:6px; }
+  .here p{ margin:0 0 10px; font-size:14.5px; }
+  .here p:last-child{ margin-bottom:0; }
+  .here .std-row{ font-size:14px; border-top-color:var(--border); }
+
+  /* Bảng: thoáng hơn, cột đầu rõ vai trò hơn */
+  thead th{ padding:10px 13px; }
+  tbody td{ padding:11px 13px; }
+  tbody td:first-child{ color:var(--ink); font-size:13px; }
+
+  /* Bảng tra thuật ngữ: gọn, không ép bề ngang */
+  .glossary table{ min-width:440px; }
+  .glossary tbody td:first-child{ white-space:nowrap; }
+
+  /* Hộp quyết định trong tài liệu này dùng tiết chế hơn */
+  .decision{ margin:18px 0; }
+  .decision h4{ font-size:14.5px; margin-bottom:8px; }
+
+
+  .decision.warn{ border-left-color:var(--warn); background:var(--warn-soft); }
+  .decision.risk{ border-left-color:var(--danger); background:var(--danger-soft); }
+  .phase-a{ border-left-color:var(--accent); }
+  table td, table th{ vertical-align:top; }
+</style>
+
+<style>
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ color-scheme:dark; } }
+  :root[data-theme="dark"]{ color-scheme:dark; }
+
+  /* mục lục */
+  nav.toc{ max-width:840px; margin:26px auto 0; display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:18px; }
+  nav.toc .grp{ display:flex; flex-direction:column; gap:4px; }
+  nav.toc .grp-t{ font-family:"Archivo",sans-serif; font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:4px; }
+  nav.toc a{ font-family:"Archivo",sans-serif; font-size:14px; text-decoration:none; color:var(--ink); padding:3px 0; border-bottom:1px dotted var(--border); }
+  nav.toc a span{ color:var(--accent-strong); font-weight:700; margin-right:6px; font-variant-numeric:tabular-nums; }
+  nav.toc a:hover{ color:var(--accent-strong); }
+
+  /* phần lớn A/B/C */
+  .part{ max-width:840px; margin:64px auto 0; padding:18px 0 0; border-top:3px solid var(--ink); }
+  .part p{ margin:0; font-family:"Archivo",sans-serif; }
+  .part .pk{ font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-strong); }
+  .part .pt{ font-size:26px; font-weight:800; margin-top:4px; }
+  .part + section{ border-top:none !important; padding-top:30px !important; }
+
+  /* câu nói mẫu */
+  .say{ border:1px solid var(--accent); border-radius:10px; padding:14px 18px 14px; margin:16px 0; background:var(--surface); }
+  .say-l{ font-family:"Archivo",sans-serif; font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--accent-strong); display:block; margin-bottom:6px; }
+  .say p{ margin:0 0 8px; font-style:italic; font-size:15px; }
+  .say p:last-child{ margin-bottom:0; }
+
+  /* ô cần tự điền */
+  mark.fill{ background:var(--warn-soft); color:var(--warn); font-family:"Archivo",sans-serif; font-weight:600; font-size:.86em; padding:1px 6px; border-radius:4px; border:1px dashed var(--warn); white-space:normal; }
+
+  /* hỏi đáp */
+  .qa-tools{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:12px 0 4px; }
+  .qa-tools button{ font-family:"Archivo",sans-serif; font-size:13px; font-weight:600; padding:7px 14px; border-radius:7px; border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent-strong); cursor:pointer; }
+  .qa-tools button:focus-visible, .qa-q:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .qa-tools span{ font-size:13px; color:var(--ink-muted); }
+  .qa{ border-top:1px solid var(--border); padding:14px 0 12px; }
+  .qa:last-child{ border-bottom:1px solid var(--border); }
+  .qa-q{ font-family:"Archivo",sans-serif; font-weight:700; font-size:15px; margin:0 0 6px; display:flex; gap:10px; align-items:baseline; }
+  .qa-q .qn{ font-size:11.5px; color:var(--accent-strong); min-width:34px; font-variant-numeric:tabular-nums; flex:none; }
+  .qa-a{ padding-left:44px; font-size:14.5px; }
+  .qa-a p{ margin:0 0 8px; }
+  .qa-a p:last-child{ margin-bottom:0; }
+  .qa-a ul{ margin:4px 0 8px; padding-left:18px; }
+  .qa-a li{ margin-bottom:3px; }
+  .qa-hint{ display:none; padding-left:44px; font-size:13px; color:var(--ink-faint); font-family:"Archivo",sans-serif; }
+  .quiz .qa-q{ cursor:pointer; }
+  .quiz .qa:not(.open) .qa-a{ display:none; }
+  .quiz .qa:not(.open) .qa-hint{ display:block; }
+  .qa .lvl{ font-family:"Archivo",sans-serif; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:2px 6px; border-radius:4px; background:var(--surface-alt); color:var(--ink-muted); flex:none; }
+  .qa .lvl.hard{ background:var(--danger-soft); color:var(--danger); }
+  @media (max-width:560px){ .qa-a,.qa-hint{ padding-left:0; } }
+
+  /* bảng số liệu */
+  td.n, th.n{ font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
+  .kicker{ font-family:"Archivo",sans-serif; font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); margin:26px 0 6px; }
+  pre.code{ white-space:pre; }
+  .legend-row{ display:flex; flex-wrap:wrap; gap:8px 14px; margin:10px 0 4px; font-size:13px; color:var(--ink-muted); align-items:center; }
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
+</style>
+<style>
+  .nom{ border-left:3px solid var(--good); background:var(--good-soft); border-radius:0 8px 8px 0; padding:12px 16px; margin:14px 0; }
+  .nom-l{ font-family:"Archivo",sans-serif; font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--good); display:block; margin-bottom:4px; }
+  .nom p{ margin:0; font-size:15px; }
+  ol.steps{ margin:14px 0 20px; padding-left:22px; }
+  ol.steps li{ margin-bottom:8px; padding-left:4px; }
+  ol.steps li strong{ font-family:"Archivo",sans-serif; }
+</style>
+
+<header class="top">
+  <p class="eyebrow">Chuẩn bị phỏng vấn · AI Security · bản dễ đọc</p>
+  <h1 class="title">Sổ phỏng vấn EdgeGuard-AI và AegisSOC — bản viết lại cho dễ hiểu</h1>
+  <p class="dek">Bản trước nhiều thuật ngữ quá. Bản này viết lại bằng câu ngắn: mỗi ý đi kèm một câu "hiểu nôm na" để cậu nắm bản chất, và một câu mẫu để nói lại cho người phỏng vấn. Các con số lấy từ code thật trong thư mục <code>KMA_AI_AGENT</code> và từ tài liệu đề tài.</p>
+</header>
+
+<nav class="toc" aria-label="Mục lục">
+  <div class="grp">
+    <span class="grp-t">Trước khi vào</span>
+    <a href="#v1"><span>01</span>Ba luật khi nói về đề tài</a>
+    <a href="#v2"><span>02</span>Kể đề tài trong một phút</a>
+  </div>
+  <div class="grp">
+    <span class="grp-t">Hai đề tài</span>
+    <a href="#v3"><span>03</span>Lõi Agent: nó làm gì</a>
+    <a href="#v4"><span>04</span>EdgeGuard-AI</a>
+    <a href="#v5"><span>05</span>AegisSOC</a>
+  </div>
+  <div class="grp">
+    <span class="grp-t">Hay bị hỏi sâu</span>
+    <a href="#v6"><span>06</span>Chống ảo giác</a>
+    <a href="#v7"><span>07</span>Lượng tử hoá</a>
+    <a href="#v8"><span>08</span>Fine-tune và RAG</a>
+  </div>
+  <div class="grp">
+    <span class="grp-t">Luyện</span>
+    <a href="#v9"><span>09</span>20 câu hỏi thường gặp</a>
+    <a href="#v10"><span>10</span>Thuật ngữ bỏ túi</a>
+  </div>
+</nav>
+
+<section id="v1">
+  <h2><span class="num">01</span>Ba luật khi nói về đề tài của mình</h2>
+  <ol class="steps">
+    <li><strong>Nói đúng mức.</strong> Dùng ba cụm: "em đã làm", "em đã thiết kế, đang code", "đây là hướng phát triển". Người phỏng vấn hỏi thêm một câu là biết ngay cậu có nói quá không.</li>
+    <li><strong>Mang theo con số.</strong> Một con số thật, dù nhỏ, thuyết phục hơn mười câu "hệ thống rất tốt".</li>
+    <li><strong>Không biết thì nói cách sẽ kiểm tra.</strong> "Phần này em chưa đo, nếu đo em sẽ làm thế này…" Với vị trí bảo mật, câu này được đánh giá cao vì nó cho thấy cậu không bịa.</li>
+  </ol>
+</section>
+
+<section id="v2">
+  <h2><span class="num">02</span>Kể đề tài trong một phút</h2>
+  <p class="section-note">Học thuộc ý, không cần thuộc từng chữ. Nói xong thì dừng, để người phỏng vấn chọn chỗ muốn hỏi sâu.</p>
+
+  <div class="say">
+    <span class="say-l">Câu mở — nối hai đề tài</span>
+    <p>"Em có một lõi AI Agent tự viết từ đề tài trước, dùng để đọc log và đề xuất cách ứng phó sự cố. Em đang đưa nó vào hai bối cảnh. EdgeGuard-AI bảo vệ camera AI ở biên: câu hỏi là AI có bị <strong>nhìn nhầm</strong> không. AegisSOC dùng cho SOC doanh nghiệp: câu hỏi là chính con Agent có bị <strong>xui khiến</strong> làm sai không."</p>
+  </div>
+
+  <div class="say">
+    <span class="say-l">EdgeGuard-AI</span>
+    <p>"Camera AI có thể bị đánh lừa bằng một miếng hình in đặc biệt, làm AI không nhìn thấy người. Hệ thống em có hai 'con mắt': một con nhìn vào bên trong AI để xem nó có đang bị rối không, một con nhìn log hệ điều hành của máy chủ camera. Hai bên cùng báo về một Agent. Agent gom lại thành một phiếu sự cố, tra cứu kiến thức MITRE, rồi đề xuất hành động. Việc gì có hậu quả thì người duyệt."</p>
+  </div>
+
+  <div class="say">
+    <span class="say-l">AegisSOC</span>
+    <p>"Ở SOC, Agent phải đọc log, mà rất nhiều nội dung trong log do chính kẻ tấn công viết ra. Nếu Agent tin nhầm những dòng chữ đó, nó có thể bị dắt đi làm sai. Đề tài của em dựng nhiều lớp bảo vệ cho Agent và đo xem mỗi lớp giảm được bao nhiêu lần Agent bị dắt sai, và làm Agent chậm hay kém đi bao nhiêu."</p>
+  </div>
+</section>
+
+<section id="v3">
+  <h2><span class="num">03</span>Lõi Agent — nó làm gì, giải thích như cho người mới</h2>
+
+  <div class="nom">
+    <span class="nom-l">Hiểu nôm na</span>
+    <p>Hãy tưởng tượng một ca trực SOC có sáu người ngồi thành dây chuyền. Người 1 đọc log và gạch chân chỗ đáng ngờ. Người 2 lật sổ xem IP này trước đó đã làm gì. Người 3 tra sổ tay nghiệp vụ. Người 4 viết kết luận. Người 5 đọc lại kết luận và hỏi "chắc chưa?". Người 6 quyết định chặn hay báo sếp. Lõi Agent của cậu chính là dây chuyền đó, trong đó chỉ người 4 và người 5 là AI; những người còn lại là code chạy theo luật.</p>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Trạm</th><th>Làm gì, nói dễ hiểu</th><th>Có dùng AI không</th></tr></thead>
+      <tbody>
+        <tr><td>Extractor</td><td>quét log tìm dấu hiệu tấn công quen thuộc bằng quy tắc (từ khoá, mẫu chuỗi, độ "lộn xộn" của tên miền), mất khoảng 0,1 giây</td><td>không</td></tr>
+        <tr><td>Correlator</td><td>gom các sự kiện cùng IP trong 15 phút thành một chuỗi, xem kẻ tấn công đang ở giai đoạn nào</td><td>không</td></tr>
+        <tr><td>Retriever</td><td>tìm 3 đoạn tài liệu liên quan nhất trong kho 7.720 đoạn (MITRE ATT&amp;CK và 311 luật Sigma)</td><td>có, model nhúng nhỏ all-MiniLM-L6-v2</td></tr>
+        <tr><td>Analyzer</td><td>Llama 3.1 8B đọc tất cả và viết kết luận theo mẫu cố định: mức độ, mã MITRE, độ mạnh bằng chứng, lý do</td><td>có</td></tr>
+        <tr><td>Reflection</td><td>đọc lại kết luận, kiểm tra tài liệu tra được có mâu thuẫn với log không; chỉ được phép hạ độ tự tin, không được nâng</td><td>có, cộng thêm luật</td></tr>
+        <tr><td>Responder</td><td>dùng bảng quyết định cố định: mức độ nào, bằng chứng mạnh tới đâu thì làm gì (bỏ qua, theo dõi, báo người, giới hạn, chặn)</td><td>không</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Bên ngoài dây chuyền còn có: API FastAPI nhận log, bộ lọc ba tầng để log bình thường không tốn lượt gọi AI, một tiến trình chạy nền 30 giây kiểm tra kho tài liệu có bị thêm tài liệu lạ không, và dashboard Streamlit để xem trực tiếp.</p>
+
+  <div class="say">
+    <span class="say-l">Câu nói mẫu</span>
+    <p>"Em thiết kế để AI chỉ làm phần cần hiểu ngữ cảnh, còn phát hiện dấu hiệu, gom chuỗi và quyết định hành động là code chạy theo luật. Như vậy AI sai thì luật vẫn chặn được hành động nguy hiểm."</p>
+  </div>
+</section>
+
+<section id="v4">
+  <h2><span class="num">04</span>EdgeGuard-AI — đề tài NCKH</h2>
+
+  <h3>Bài toán</h3>
+  <div class="nom">
+    <span class="nom-l">Hiểu nôm na</span>
+    <p>Camera AI giống một bảo vệ chỉ nhìn qua màn hình. Kẻ xấu có hai cách qua mặt: làm cho bảo vệ "nhìn mà không thấy" (đánh lừa model AI), hoặc lẻn vào phòng máy chỉnh luồng video (tấn công máy chủ). Mỗi cách chỉ lộ ra ở một nơi, nên hệ thống cần hai người canh ở hai nơi và một người tổng hợp.</p>
+  </div>
+  <p>Vì sao chạy ngay tại chỗ (ở biên) thay vì gửi lên cloud: phản ứng nhanh, không tốn băng thông video, hình ảnh có mặt người không rời khỏi hệ thống, và vẫn chạy được khi mất mạng.</p>
+
+  <h3>Đường đi của một cảnh báo — 7 bước</h3>
+  <ol class="steps">
+    <li><strong>Camera → YOLO11s</strong> phát hiện người trong khung hình.</li>
+    <li><strong>Grad-CAM</strong> vẽ "bản đồ nhiệt" cho biết AI đang chú ý vào vùng nào. Người bình thường thì vùng nóng trải theo cơ thể. Khi bị đánh lừa, vùng nóng dồn cục, lệch chỗ, lộn xộn.</li>
+    <li><strong>Ba chỉ số C, D, E</strong> biến bản đồ nhiệt thành số: độ dồn cục, độ lệch tâm, độ lộn xộn. Một model Logistic Regression gộp ba số thành một điểm nghi ngờ từ 0 tới 1.</li>
+    <li><strong>Kiểm chứng lại</strong> bằng hai cách độc lập (Jedi và LGS): làm sạch vùng nghi ngờ rồi cho AI nhìn lại. Nếu người "hiện ra" thì gần như chắc chắn đã bị đánh lừa.</li>
+    <li><strong>Đóng gói cảnh báo, ký HMAC</strong> (một con dấu số để biết cảnh báo không bị sửa trên đường đi) rồi gửi vào Splunk. Song song, Sysmon trên máy chủ gửi log hệ điều hành vào Splunk.</li>
+    <li><strong>Bộ lọc</strong> chỉ cho những cảnh báo đáng giá đi tiếp, để không tốn lượt gọi AI cho tiếng ồn.</li>
+    <li><strong>Agent</strong> mở phiếu sự cố, bổ sung thông tin (lịch sử, thiết bị này quan trọng cỡ nào, IP có tiếng xấu không), tra MITRE, kết luận, rồi người duyệt trước khi chặn hay cô lập.</li>
+  </ol>
+
+  <div class="decision reco">
+    <h4>Ý hay nhất để kể: hai nhân chứng</h4>
+    <p>Một mình cảnh báo từ máy chủ có thể chỉ là phần mềm cập nhật. Một mình cảnh báo từ hình ảnh có thể chỉ là do ánh sáng. Nhưng cả hai cùng xảy ra trên cùng một thiết bị, trong cùng một phút, thì gần như chắc chắn là tấn công thật. Agent gộp hai cảnh báo thành một phiếu và kết luận mạnh hơn từng bên.</p>
+  </div>
+
+  <h3>Những gì đã làm và có số</h3>
+  <div class="deflist">
+    <div class="std-row"><span class="std-k">Chọn lớp cho Grad-CAM bằng số</span><span>Ban đầu chọn bằng mắt và chọn sai. Sau đó đo "bao nhiêu phần nhiệt nằm trong khung người" trên 99 ảnh: lớp 22 tốt nhất, trung vị 1,546 (lớn hơn 1 nghĩa là AI chú ý vào người nhiều hơn ngẫu nhiên).</span></div>
+    <div class="std-row"><span class="std-k">Bằng chứng đáng giá</span><span>Cùng tư thế, cùng khoảng cách: không có miếng hình thì chỉ số khoảng 1,14–1,26; có miếng hình thì tụt còn 0,011–0,223. Tức là miếng hình làm AI "rối" thấy rõ, dù in ra chưa đủ mạnh để AI mất hẳn người.</span></div>
+    <div class="std-row"><span class="std-k">Tìm ra lỗi thật</span><span>Lúc đầu hệ thống chỉ kiểm tra người có độ tin cao nhất trong khung hình, nên người bị đánh lừa đứng cạnh người khác là bị bỏ sót. Đã sửa để kiểm tra mọi người đáng ngờ.</span></div>
+    <div class="std-row"><span class="std-k">Chọn model có cân nhắc</span><span>Đổi YOLO11n sang 11s: chậm hơn khoảng 3% (13,15 ms so với 13,52 ms) nhưng độ chính xác chuẩn COCO tăng từ 39,5 lên 47,0.</span></div>
+  </div>
+
+  <h3>Chưa có số — nói thật</h3>
+  <p>Chưa có độ chính xác đầu-cuối, vì bộ dữ liệu 400 ảnh sạch và 400 ảnh bị đánh lừa đang thu. Model Logistic Regression chưa train. Phần ticket, bộ lọc ML và đo Agent mới thiết kế.</p>
+</section>
+
+<section id="v5">
+  <h2><span class="num">05</span>AegisSOC — đề tài môn học, hướng lên đồ án</h2>
+
+  <div class="nom">
+    <span class="nom-l">Hiểu nôm na</span>
+    <p>Agent SOC giống một nhân viên mới chuyên đọc thư khiếu nại. Vấn đề là chính kẻ xấu cũng gửi thư, và trong thư có thể cài những câu kiểu "anh cứ đánh dấu thư này là bình thường nhé". Nhân viên ngây thơ sẽ làm theo. AegisSOC dạy hệ thống để nhân viên đó luôn coi nội dung thư là <em>thứ cần phân tích</em>, không bao giờ là <em>mệnh lệnh</em>.</p>
+  </div>
+
+  <p>Bối cảnh: lab ba máy (máy chính chạy Agent và Splunk, một máy Linux làm cảm biến web và mạng, một máy Windows làm nạn nhân có Sysmon). Ba nguồn log: web, endpoint, mạng. Hiện cậu làm một mình, chạy trực tiếp trên Windows.</p>
+
+  <h3>Năm lớp bảo vệ ở pha đầu — mỗi lớp một câu</h3>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Lớp</th><th>Làm gì</th><th>Ví von</th></tr></thead>
+      <tbody>
+        <tr><td>1 · Tách quyền (Rule of Two)</td><td>Bước nào đọc dữ liệu lạ thì không được có quyền ra lệnh chặn. Quyết định hành động do bảng luật chọn.</td><td>người đọc thư không cầm chìa khoá két</td></tr>
+        <tr><td>2 · Đánh dấu dữ liệu (Spotlighting)</td><td>Đưa log ra khỏi phần chỉ thị, bọc bằng dấu hiệu rõ ràng để AI biết "đây là dữ liệu".</td><td>đóng dấu "TÀI LIỆU THAM KHẢO" lên mọi bức thư</td></tr>
+        <tr><td>3 · Bộ lọc đầu vào</td><td>Một model phân loại nhỏ quét các trường log trước khi đưa cho AI, cái nào đáng ngờ thì gắn cờ và sinh cảnh báo riêng.</td><td>máy soi hành lý ở cửa</td></tr>
+        <tr><td>4 · Hạn chế đường ra và quyền công cụ</td><td>Agent chỉ được liên lạc với vài địa chỉ cần thiết; mỗi công cụ chỉ làm đúng một việc hẹp.</td><td>nhân viên chỉ gọi được ba số nội bộ</td></tr>
+        <tr><td>5 · Kiểm nguồn gốc kho tri thức</td><td>Lúc nạp tài liệu thì ghi danh sách "dấu vân tay" (hash) và ký lại; lúc dùng chỉ nhận tài liệu có trong danh sách.</td><td>thư viện chỉ cho mượn sách có tem của thư viện</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Đo thế nào</h3>
+  <p>Hai câu hỏi, mỗi câu một bảng số. Một: bật từng lớp thì tỷ lệ Agent bị dắt sai giảm bao nhiêu. Hai: bật hết các lớp thì Agent làm đúng việc bình thường ít đi bao nhiêu. Câu thứ hai quan trọng không kém câu thứ nhất, vì một lớp bảo vệ chặn hết mọi thứ mà làm Agent vô dụng thì không ai dùng. Ngoài ra phải thử cả trường hợp kẻ tấn công biết trước mình phòng thủ gì, vì nghiên cứu năm 2025 cho thấy phần lớn phòng thủ đã công bố bị vượt khi kẻ tấn công được điều chỉnh theo.</p>
+
+  <div class="say">
+    <span class="say-l">Câu nói mẫu khi bị hỏi "hệ của em chống được hết không?"</span>
+    <p>"Không ai chống được tuyệt đối. Em không tuyên bố an toàn. Em đo xem mỗi lớp giảm được bao nhiêu và lớp nào vẫn bị vượt, rồi báo cáo đúng như vậy."</p>
+  </div>
+</section>
+
+<section id="v6">
+  <h2><span class="num">06</span>Chống ảo giác — cậu đã làm gì, nói sao cho dễ hiểu</h2>
+
+  <div class="nom">
+    <span class="nom-l">Hiểu nôm na</span>
+    <p>Ảo giác là khi AI nói rất tự tin một điều không có thật. Trong SOC, nó thể hiện thành: bịa ra một mã MITRE, nhắc tới một IP không có trong log, hoặc kết luận ngược với chính dữ liệu. Không có cách nào làm AI hết ảo giác hẳn. Cách đúng là <strong>thu hẹp chỗ AI được phép sai</strong>, và <strong>đặt người gác</strong> ở những chỗ AI sai sẽ gây hậu quả.</p>
+  </div>
+
+  <h3>Sáu lớp đang có trong code lõi cũ</h3>
+  <ol class="steps">
+    <li><strong>AI không phải người phát hiện.</strong> Dấu hiệu tấn công do code quy tắc tìm ra (Extractor, luật Sigma, YOLO và Grad-CAM). AI chỉ giải thích và xếp mức độ trên những bằng chứng đã có.</li>
+    <li><strong>Trả lời theo mẫu cố định.</strong> AI buộc phải trả về đúng 7 trường (mức độ, mã MITRE, độ mạnh bằng chứng, độ tự tin, lý do…), kiểm bằng Pydantic. Temperature đặt 0 để cùng đầu vào thì ra cùng kết quả.</li>
+    <li><strong>Tra sổ tay trước khi nói.</strong> Mỗi lần phân tích đều kèm 3 đoạn tài liệu MITRE hoặc Sigma liên quan nhất. Nếu tài liệu có độ tin thấp hoặc không tìm thấy, độ tự tin của kết luận bị giảm.</li>
+    <li><strong>Người kiểm lại chỉ được hãm, không được đạp ga.</strong> Bước Reflection đọc lại kết luận; nếu thấy mâu thuẫn thì được hạ độ tự tin, không bao giờ được nâng.</li>
+    <li><strong>Luật đè lên AI.</strong> Câu chuyện thật khi làm: Llama 8B không theo nổi quy tắc có nhiều điều kiện, có lần còn khẳng định "IP này chưa có tiền sử" trong khi IP đó đã có cảnh báo nặng. Cậu chuyển quy tắc đó sang code: IP đã có cảnh báo HIGH mà đăng nhập thành công thì tự động nâng lên CRITICAL, và thay phần lý do bằng lý do đúng lấy từ dữ liệu. Tương tự, 5 lần HIGH từ cùng IP thì code tự leo thang.</li>
+    <li><strong>Hành động do bảng quyết định chọn, việc lớn có người duyệt.</strong> AI không trực tiếp ra lệnh chặn; bảng mức độ × bằng chứng chọn hành động, và IP được kiểm tra đúng định dạng trước khi thực thi.</li>
+  </ol>
+
+  <div class="decision warn">
+    <h4>Vì sao lớp 5 và 6 quan trọng hơn lớp 4</h4>
+    <p>Nghiên cứu (Huang và cộng sự, ICLR 2024) cho thấy AI tự đọc lại bài của mình mà không có thông tin mới thì không sửa sai ổn định, có lúc còn tệ hơn. Người kiểm lại dùng cùng một bộ não nên dễ mắc cùng một lỗi. Vì vậy trong thiết kế, bước tự kiểm chỉ là lớp mềm; lưới an toàn thật là luật trong code.</p>
+  </div>
+
+  <h3>Đang nâng cấp — nói là "hướng tiếp theo"</h3>
+  <div class="deflist">
+    <div class="std-row"><span class="std-k">Kiểm tra chéo</span><span>Mọi mã MITRE và IP xuất hiện trong kết luận phải có thật trong phiếu sự cố hoặc danh sách MITRE chính thức; không có thì loại kết luận.</span></div>
+    <div class="std-row"><span class="std-k">Kiểm soát độ dài</span><span>Code chưa đặt <code>num_ctx</code>. Nếu lời nhắc dài quá giới hạn mặc định của Ollama, phần đầu có thể bị cắt mà không báo lỗi. Cần đặt rõ và đếm token.</span></div>
+    <div class="std-row"><span class="std-k">Đo</span><span>30–50 tình huống có đáp án đúng, đếm số lần kết luận đúng và số lần luật trong code phải sửa kết luận của AI.</span></div>
+  </div>
+
+  <div class="say">
+    <span class="say-l">Trả lời 45 giây — "Em chống ảo giác thế nào?"</span>
+    <p>"Em không để AI làm việc phát hiện, AI chỉ giải thích trên bằng chứng mà code đã tìm ra. Đầu ra bị ép theo mẫu cố định, temperature bằng 0, và luôn có tài liệu MITRE đi kèm. Bước tự kiểm chỉ được hạ độ tự tin. Quan trọng nhất là luật trong code: em từng thấy Llama 8B khẳng định sai lịch sử của một IP, nên em chuyển quy tắc đó thành code để đè lên kết luận của AI. Hành động do bảng quyết định chọn và việc lớn có người duyệt."</p>
+  </div>
+</section>
+
+<section id="v7">
+  <h2><span class="num">07</span>Lượng tử hoá — giải thích như nén ảnh</h2>
+
+  <div class="nom">
+    <span class="nom-l">Hiểu nôm na</span>
+    <p>Model là hàng tỷ con số. Bản gốc lưu mỗi số bằng 16 bit, như ảnh chụp chất lượng cao. Lượng tử hoá là lưu mỗi số bằng khoảng 4 bit, giống nén ảnh sang JPEG: file nhỏ đi gần bốn lần, mắt thường gần như không thấy khác.</p>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Con số cần nhớ</th><th>Giá trị</th></tr></thead>
+      <tbody>
+        <tr><td>Model đang dùng</td><td>Llama 3.1, bản 8 tỷ tham số, qua Ollama, dạng Q4_K_M (khoảng 4 bit mỗi số)</td></tr>
+        <tr><td>Nếu không nén</td><td>khoảng 16 GB — không vừa card RTX 4060 8 GB</td></tr>
+        <tr><td>Sau khi nén</td><td>4,9 GB — vừa card, còn chỗ cho bộ nhớ tạm</td></tr>
+        <tr><td>Mất bao nhiêu chất lượng</td><td>đo trên đúng model này: điểm trung bình các bài kiểm tra 69,47 → 69,15; gần như không đổi</td></tr>
+        <tr><td>Bộ nhớ tạm khi đọc</td><td>khoảng 128 KB cho mỗi token; 4.000 token cần khoảng 0,5 GB</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="say">
+    <span class="say-l">Câu nói mẫu</span>
+    <p>"Em dùng bản Q4_K_M vì bản gốc 16 GB không vừa GPU 8 GB. Bản nén còn 4,9 GB, và theo một đánh giá trên đúng Llama 3.1 8B thì điểm trung bình chỉ giảm khoảng 0,3. Em không nén thấp hơn 4 bit vì dưới mức đó chất lượng giảm nhanh; nếu cần nhẹ hơn nữa em sẽ chọn model nhỏ hơn."</p>
+  </div>
+
+  <div class="deflist">
+    <div class="std-row"><span class="std-k">GGUF</span><span>định dạng file model đã nén mà Ollama và llama.cpp dùng; chạy được trên máy cá nhân.</span></div>
+    <div class="std-row"><span class="std-k">GPTQ, AWQ</span><span>hai cách nén khác, hay dùng khi phục vụ nhiều người cùng lúc bằng vLLM.</span></div>
+    <div class="std-row"><span class="std-k">Có làm AI bịa nhiều hơn không?</span><span>Ở 4 bit thì ảnh hưởng nhỏ. Cách trả lời chắc nhất: "em sẽ chạy bộ tình huống với bản 4 bit và bản 8 bit rồi so".</span></div>
+  </div>
+</section>
+
+<section id="v8">
+  <h2><span class="num">08</span>Fine-tune và RAG — khác nhau thế nào</h2>
+
+  <div class="nom">
+    <span class="nom-l">Hiểu nôm na</span>
+    <p><strong>RAG</strong> là cho phép mở sổ tay khi làm bài: kiến thức nằm ngoài model, đổi sổ tay là có kiến thức mới. <strong>Fine-tune</strong> là cho model đi học thêm để thay đổi thói quen trả lời. Kiến thức hay thay đổi (MITRE cập nhật liên tục) thì dùng RAG. Kỹ năng cố định (ví dụ phân loại một đoạn chữ có đáng ngờ không) thì fine-tune.</p>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Model</th><th>Có fine-tune không</th><th>Lý do, nói gọn</th></tr></thead>
+      <tbody>
+        <tr><td>Llama 3.1 8B của Agent</td><td>không</td><td>kiến thức hay đổi nên dùng RAG; chưa có dữ liệu do người gán nhãn; card chỉ 8 GB</td></tr>
+        <tr><td>Bộ lọc đầu vào DeBERTa</td><td>có, trong kế hoạch</td><td>đây là việc phân loại, đúng chỗ của fine-tune</td></tr>
+        <tr><td>YOLO11s</td><td>có, trong kế hoạch</td><td>trộn ảnh thường và ảnh có miếng hình để model bền hơn</td></tr>
+        <tr><td>Logistic Regression, Random Forest</td><td>train từ đầu</td><td>model nhỏ, nhanh, giải thích được</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="decision">
+    <h4>Chi tiết đáng nói: 1.048 mẫu chưa dùng để train</h4>
+    <p>Lõi cũ đã tự ghi lại 1.048 ca phân tích (từ 144 sự cố) theo dạng hỏi–đáp, sẵn để fine-tune sau này. Nhưng nhãn trong đó do chính AI sinh ra và chưa có người duyệt. Train lại trên câu trả lời của chính mình thì AI học lại cả lỗi của nó. Nên kế hoạch là người duyệt trước, rồi mới dùng.</p>
+  </div>
+
+  <div class="deflist">
+    <div class="std-row"><span class="std-k">LoRA</span><span>thay vì sửa cả model, gắn thêm vài bộ phận nhỏ và chỉ train phần đó. Với một ma trận 4096 × 4096, phần train thêm chỉ khoảng 0,8%.</span></div>
+    <div class="std-row"><span class="std-k">QLoRA</span><span>LoRA trên model đã nén 4 bit, nên ít bộ nhớ hơn nữa. Tài liệu Unsloth ghi mức tối thiểu khoảng 6 GB cho model 8B.</span></div>
+    <div class="std-row"><span class="std-k">Nếu phải fine-tune Agent</span><span>lấy các ca người duyệt đã sửa làm dữ liệu, train có giám sát trước, sau đó dạy theo cặp "câu tốt hơn / câu kém hơn" (DPO), và luôn đo lại trên bộ tình huống.</span></div>
+  </div>
+</section>
+
+<section id="v9">
+  <h2><span class="num">09</span>20 câu hỏi thường gặp — đáp án ngắn, nói được</h2>
+  <div class="qa-tools">
+    <button type="button" id="quizBtn" aria-pressed="false">Ẩn đáp án để tự luyện</button>
+    <span id="quizNote">Đang hiện toàn bộ đáp án.</span>
+  </div>
+  <div class="qa-list">
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">1</span>Vai trò của em trong đề tài là gì?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Em là trưởng nhóm EdgeGuard-AI, làm toàn bộ phần AI: nhánh hình ảnh, bộ lọc và Agent. Lõi Agent là do em viết từ đề tài trước. AegisSOC em làm một mình.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">2</span>Sao dùng Llama 8B mà không dùng GPT-4?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Log và hình ảnh giám sát không nên gửi ra ngoài, hệ phải chạy được khi mất mạng, và việc của AI ở đây hẹp: xếp mức độ, gán mã MITRE, giải thích. Việc hẹp thì model nhỏ cộng tài liệu tra cứu tốt và luật chặn sai là đủ.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">3</span>LangGraph là gì, sao chọn nó?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Thư viện để xếp các bước xử lý thành một sơ đồ có rẽ nhánh. Em cần rẽ nhánh (chuyển người duyệt hay tự xử lý) và cần biết rõ bước nào quyết định gì. Một Agent đi theo sơ đồ cố định dễ kiểm tra hơn nhiều Agent tự bàn với nhau.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">4</span>RAG của em hoạt động thế nào?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Kho 7.720 đoạn tài liệu từ MITRE ATT&amp;CK v19 và 311 luật Sigma, lưu trong ChromaDB. Mỗi lần phân tích, em tìm riêng trong luật Sigma và trong MITRE, ưu tiên nguồn tin cậy hơn, giữ 3 đoạn tốt nhất đưa cho AI. Model nhúng là all-MiniLM-L6-v2.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">5</span>Em cắt tài liệu thế nào?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Hiện tại cắt theo độ dài: mỗi đoạn 800 ký tự, gối lên nhau 120 ký tự để không mất ý ở chỗ cắt. Mỗi đoạn giữ nhãn mã kỹ thuật, chiến thuật, nguồn. Hướng nâng là cắt theo cấu trúc, mỗi kỹ thuật MITRE là một đơn vị, vì tài liệu MITRE vốn chia sẵn như vậy.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">6</span>Model nhúng đó có hạn chế gì?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Nó nhỏ, chủ yếu cho tiếng Anh, và tìm theo nghĩa nên kém với các chuỗi mã như T1078 hay tên tiến trình. Em định thêm tìm theo từ khoá (BM25) rồi trộn kết quả, gọi là hybrid search.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">7</span>Em bảo vệ kho tài liệu khỏi bị cài tài liệu giả thế nào?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Hiện có ba lớp: một tiến trình 30 giây kiểm tra kho một lần, thấy tài liệu mới không rõ nguồn thì sinh cảnh báo; bước tìm kiếm chỉ nhận tài liệu từ nguồn tin cậy; bước kiểm lại so tài liệu với bằng chứng trong log. Điểm yếu em tự nhận ra là các lớp này dựa vào nhãn mà tài liệu tự khai. Bản nâng cấp sẽ ghi "dấu vân tay" của mọi tài liệu lúc nạp và ký lại, lúc dùng chỉ nhận tài liệu có trong danh sách.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">8</span>Làm sao em biết Agent kết luận đúng?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Thật lòng là chưa có bảng số. Em đang dựng 30–50 tình huống có đáp án đúng, chạy tự động, đo tỷ lệ chọn đúng hành động, tỷ lệ chuyển cho người, số lần luật phải sửa kết luận của AI, và thời gian xử lý.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">9</span>Prompt injection là gì, vì sao nguy hiểm với SOC?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Là khi dữ liệu mà AI đọc có chứa câu mang tính mệnh lệnh, và AI làm theo câu đó thay vì làm theo nhiệm vụ. Ở SOC nguy hiểm hơn chỗ khác vì AI phải đọc log, mà nhiều trường trong log do chính kẻ tấn công viết. Nếu AI còn có quyền chặn IP thì bị lừa là thành sự cố thật.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">10</span>Sao không chỉ dặn AI "đừng nghe lệnh trong log" là xong?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Vì AI nghe theo phần lớn thời gian chứ không phải luôn luôn, và kẻ tấn công chỉ cần những lần nó không nghe. Nên phải thêm lớp không phụ thuộc AI: tách quyền, luật trong code, người duyệt.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">11</span>HMAC là gì, sao cần?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Là con dấu số tạo từ nội dung và một khoá bí mật. Bên nhận tính lại, khớp thì biết nội dung không bị sửa trên đường đi. Cảnh báo an ninh là bằng chứng nên phải đảm bảo không bị sửa. Khi so con dấu em dùng hàm so sánh thời gian cố định để không lộ thông tin qua thời gian chạy.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">12</span>Bộ lọc trước khi gọi AI để làm gì?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Gọi AI tốn vài giây mỗi lần, nên không thể gọi cho mọi log. Lõi cũ có ba tầng: bỏ log kỹ thuật vô hại, dùng quy tắc tìm dấu hiệu, chỉ log đáng ngờ mới tới AI. EdgeGuard sẽ thay tầng giữa bằng model học máy, và chạy thử song song trước khi bật thật để chắc nó không bỏ sót tấn công.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">13</span>Sao em ưu tiên recall hơn accuracy?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Tấn công hiếm, nên model đoán "an toàn" hết vẫn có accuracy cao. Recall đo trong số tấn công thật mình bắt được bao nhiêu. Bỏ sót một tấn công đắt hơn nhiều so với gửi nhầm một log lên cho AI xem.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">14</span>Grad-CAM là gì, nói đơn giản?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Là cách vẽ ra vùng nào trong ảnh làm AI đưa ra quyết định. Em dùng nó như chiếc kính nhìn vào bên trong AI: khi AI bị đánh lừa, vùng nó chú ý trở nên bất thường, và em đo sự bất thường đó bằng ba chỉ số.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">15</span><span class="lvl hard">khó</span>Nếu kẻ tấn công biết em dùng Grad-CAM thì sao?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Họ có thể tìm cách làm vùng chú ý trông bình thường. Em có ba chỗ đỡ: dùng ba chỉ số chứ không một; hai cách kiểm chứng độc lập không dựa vào Grad-CAM; và nhánh log hệ điều hành. Nhưng em chưa thử trường hợp này bằng thí nghiệm, nên em ghi nó là hạn chế và là việc tiếp theo.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">16</span>Vì sao em không fine-tune Llama?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Kiến thức MITRE thay đổi liên tục nên để ở kho tra cứu hợp hơn. Em có 1.048 mẫu tự ghi lại nhưng nhãn do chính AI sinh, chưa người duyệt, train trên đó thì AI học lại lỗi của mình. Và điểm yếu hiện tại nằm ở đầu vào và khâu kiểm chứng, không nằm ở cách AI trả lời.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">17</span>Khó khăn lớn nhất em gặp?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Chọn lớp cho Grad-CAM. Em chọn bằng mắt và chọn sai. Khi đo bằng số thì lớp em chọn gần như ngẫu nhiên. Em viết công cụ đo, chạy trên 99 ảnh, còn phát hiện lỗi ngay trong công cụ đo, sửa xong mới chốt lớp 22. Bài học là không tin cảm quan, phải đo.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">18</span>Một lỗi bảo mật em tự tìm ra trong hệ của mình?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Hệ thống từng chỉ kiểm tra người có độ tin cao nhất trong khung hình. Người bị đánh lừa có độ tin thấp, nên đứng cạnh người khác là bị bỏ qua. Em phát hiện khi thử với nhiều người và sửa để kiểm tra mọi người đáng ngờ.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">19</span>Có thêm ba tháng em làm gì trước?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Làm phần đo trước khi thêm tính năng: bộ tình huống đánh giá Agent, bộ dữ liệu ảnh để có độ chính xác thật. Một hệ ít thành phần nhưng có số chứng minh có giá trị hơn một hệ nhiều thành phần chưa đo.</p></div></div>
+    <div class="qa"><p class="qa-q" tabindex="0"><span class="qn">20</span>Em thấy mình còn yếu ở đâu?</p><p class="qa-hint">Bấm để xem đáp án</p><div class="qa-a"><p>Nền lý thuyết học máy em học chưa bài bản, và em chưa có kinh nghiệm thiết kế thí nghiệm đánh giá chặt. Em đang bù bằng cách làm bộ đánh giá cho chính Agent của mình và đọc các bài báo gốc về phương pháp đo.</p></div></div>
+  </div>
+</section>
+
+<section id="v10">
+  <h2><span class="num">10</span>Thuật ngữ bỏ túi — mỗi từ một câu</h2>
+  <div class="table-scroll glossary">
+    <table>
+      <thead><tr><th>Từ</th><th>Nghĩa đơn giản</th></tr></thead>
+      <tbody>
+        <tr><td>Agent</td><td>AI không chỉ trả lời mà còn làm nhiều bước và gọi công cụ</td></tr>
+        <tr><td>RAG</td><td>tra tài liệu rồi mới trả lời</td></tr>
+        <tr><td>Embedding</td><td>biến một đoạn chữ thành dãy số để so độ giống nhau về nghĩa</td></tr>
+        <tr><td>Vector DB</td><td>kho lưu các dãy số đó để tìm nhanh (ChromaDB)</td></tr>
+        <tr><td>Chunk</td><td>một đoạn tài liệu sau khi cắt nhỏ</td></tr>
+        <tr><td>Top-k</td><td>lấy k đoạn giống nhất</td></tr>
+        <tr><td>Temperature</td><td>độ "ngẫu hứng" khi AI trả lời; 0 là ổn định nhất</td></tr>
+        <tr><td>Context window</td><td>lượng chữ tối đa AI đọc được trong một lần</td></tr>
+        <tr><td>Ảo giác</td><td>AI nói tự tin điều không có thật</td></tr>
+        <tr><td>Lượng tử hoá</td><td>nén model bằng cách lưu số với ít bit hơn</td></tr>
+        <tr><td>Fine-tune</td><td>cho model học thêm để đổi cách trả lời</td></tr>
+        <tr><td>LoRA</td><td>fine-tune tiết kiệm, chỉ train vài bộ phận nhỏ gắn thêm</td></tr>
+        <tr><td>Prompt injection</td><td>câu mang tính mệnh lệnh nằm trong dữ liệu làm AI đi chệch nhiệm vụ</td></tr>
+        <tr><td>HITL</td><td>có người duyệt trước khi làm việc quan trọng</td></tr>
+        <tr><td>Recall · Precision</td><td>bắt được bao nhiêu tấn công thật · báo động đúng được bao nhiêu</td></tr>
+        <tr><td>MTTR</td><td>thời gian trung bình từ lúc có cảnh báo tới lúc xử lý xong</td></tr>
+        <tr><td>Grad-CAM</td><td>bản đồ cho thấy AI nhìn vào đâu khi quyết định</td></tr>
+        <tr><td>HMAC</td><td>con dấu số chứng minh nội dung không bị sửa</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <h3>Nguồn</h3>
+  <ul class="src-list">
+    <li>Code và dữ liệu lõi cũ trong thư mục <code>KMA_AI_AGENT</code> (đọc ngày 24/09/2026); tài liệu đề tài EdgeGuard-AI và kế hoạch AegisSOC v4</li>
+    <li>Llama 3.1 8B trên Ollama, bản Q4_K_M 4,9 GB — <a href="https://ollama.com/library/llama3.1:8b" target="_blank" rel="noopener">ollama.com</a></li>
+    <li>Đánh giá mức nén trên Llama-3.1-8B-Instruct — <a href="https://arxiv.org/html/2601.14277v1" target="_blank" rel="noopener">arXiv 2601.14277</a></li>
+    <li>LLM chưa tự sửa suy luận được khi không có thông tin ngoài — <a href="https://arxiv.org/abs/2310.01798" target="_blank" rel="noopener">arXiv 2310.01798</a></li>
+    <li>Ngữ cảnh mặc định của Ollama — <a href="https://docs.ollama.com/context-length" target="_blank" rel="noopener">docs.ollama.com</a></li>
+    <li>Yêu cầu bộ nhớ khi fine-tune — <a href="https://unsloth.ai/docs/get-started/fine-tuning-for-beginners/unsloth-requirements" target="_blank" rel="noopener">Unsloth</a></li>
+    <li>Phòng thủ bị vượt khi kẻ tấn công điều chỉnh theo — <a href="https://arxiv.org/abs/2510.09023" target="_blank" rel="noopener">arXiv 2510.09023</a></li>
+  </ul>
+</footer>
+
+<script>
+(function(){
+  var btn=document.getElementById('quizBtn'), note=document.getElementById('quizNote'), root=document.documentElement;
+  function setQuiz(on){
+    root.classList.toggle('quiz',on);
+    btn.setAttribute('aria-pressed',on?'true':'false');
+    btn.textContent=on?'Hiện lại toàn bộ đáp án':'Ẩn đáp án để tự luyện';
+    note.textContent=on?'Bấm vào từng câu hỏi để xem đáp án.':'Đang hiện toàn bộ đáp án.';
+    if(!on){document.querySelectorAll('.qa.open').forEach(function(q){q.classList.remove('open');});}
+  }
+  btn.addEventListener('click',function(){setQuiz(!root.classList.contains('quiz'));});
+  document.querySelectorAll('.qa-q').forEach(function(q){
+    function t(){ if(root.classList.contains('quiz')) q.parentElement.classList.toggle('open'); }
+    q.addEventListener('click',t);
+    q.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){e.preventDefault();t();} });
+  });
+})();
+</script>
+
+</body></html>

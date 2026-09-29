@@ -1,0 +1,558 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><title>Hỏi đáp đề tài EdgeGuard–AegisSOC</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#F5F7F9; --surface:#FFFFFF; --surface-alt:#EAEEF1; --surface-raised:#FFFFFF;
+    --ink:#142029; --ink-muted:#56646F; --ink-faint:#8695A0; --border:#DBE1E6;
+    --accent:#0E7C86; --accent-strong:#075E66; --accent-soft:#DFF1F1;
+    --warn:#B4650A; --warn-soft:#FBEBD9;
+    --danger:#B23A3A; --danger-soft:#F7E4E2;
+    --good:#2F7D5A; --good-soft:#E1F0E7;
+    --shadow:0 1px 2px rgba(20,32,41,.06), 0 10px 28px -14px rgba(20,32,41,.16);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0F171F; --surface:#16212B; --surface-alt:#1D2933; --surface-raised:#1B2731;
+      --ink:#E7ECEF; --ink-muted:#9FB0BD; --ink-faint:#6E818D; --border:#2A3A44;
+      --accent:#4FD1DB; --accent-strong:#7EE3EA; --accent-soft:rgba(79,209,219,.12);
+      --warn:#E3A63E; --warn-soft:rgba(227,166,62,.14);
+      --danger:#E2827A; --danger-soft:rgba(226,130,122,.14);
+      --good:#6FCB9F; --good-soft:rgba(111,203,159,.14);
+      --shadow:0 1px 2px rgba(0,0,0,.35), 0 10px 28px -14px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0F171F; --surface:#16212B; --surface-alt:#1D2933; --surface-raised:#1B2731;
+    --ink:#E7ECEF; --ink-muted:#9FB0BD; --ink-faint:#6E818D; --border:#2A3A44;
+    --accent:#4FD1DB; --accent-strong:#7EE3EA; --accent-soft:rgba(79,209,219,.12);
+    --warn:#E3A63E; --warn-soft:rgba(227,166,62,.14);
+    --danger:#E2827A; --danger-soft:rgba(226,130,122,.14);
+    --good:#6FCB9F; --good-soft:rgba(111,203,159,.14);
+    --shadow:0 1px 2px rgba(0,0,0,.35), 0 10px 28px -14px rgba(0,0,0,.55);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--ink); margin:0;
+    font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+    font-size:16.5px; line-height:1.6;
+    padding-inline:20px; padding-block:0 48px;
+  }
+  h1,h2,h3,.mono{ font-family:"Archivo",system-ui,sans-serif; }
+  code,pre,.mono-sm{ font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  /* NOTE: IBM Plex Mono drops the accent on Vietnamese double-diacritic vowels (ế, ố, ử, ...),
+     so it is reserved for ASCII-only code/identifiers. All Vietnamese labels below use Archivo. */
+  .chip,.badge,.eyebrow,.card .tag,thead th,tbody td:first-child{ font-family:"Archivo",system-ui,sans-serif; }
+
+  a{ color:var(--accent-strong); }
+  :root[data-theme="dark"] a, :root:not([data-theme="light"]) a{ color:var(--accent); }
+
+  .wrap{ max-width:840px; margin:0 auto; }
+  .wide{ max-width:960px; margin:0 auto; }
+
+  /* header */
+  header.top{
+    max-width:840px; margin:0 auto; padding-top:38px; padding-bottom:22px;
+    border-bottom:1px solid var(--border);
+  }
+  .eyebrow{
+    font-size:12px; letter-spacing:.08em; font-weight:600;
+    text-transform:uppercase; color:var(--accent-strong); margin:0 0 10px;
+  }
+  h1.title{
+    font-size:clamp(28px,5vw,40px); font-weight:800; margin:0 0 10px; line-height:1.12;
+    text-wrap:balance;
+  }
+  p.dek{ font-size:17px; color:var(--ink-muted); margin:0 0 18px; max-width:60ch; }
+
+  .status-strip{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+  .chip{
+    font-size:11.5px; padding:5px 10px; border-radius:99px; border:1px solid var(--border);
+    background:var(--surface-alt); color:var(--ink-muted); white-space:nowrap;
+    display:inline-flex; align-items:center; gap:6px; letter-spacing:.01em;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; display:inline-block; flex:none; }
+  .dot.done{ background:var(--good); }
+  .dot.progress{ background:var(--accent); }
+  .dot.open{ background:var(--warn); }
+  .dot.risk{ background:var(--danger); }
+
+  /* sections */
+  section{ max-width:840px; margin:0 auto; padding-top:44px; }
+  section.figure-section{ max-width:960px; }
+  h2{ font-size:22px; font-weight:700; margin:0 0 6px; letter-spacing:-.01em; }
+  h2 .num{ color:var(--accent-strong); font-family:"IBM Plex Mono",monospace; font-size:14px; margin-right:8px; }
+  .section-note{ color:var(--ink-muted); font-size:14.5px; margin:0 0 20px; max-width:64ch; }
+  h3{ font-size:16.5px; font-weight:700; margin:26px 0 8px; }
+  p{ margin:0 0 14px; }
+  .lede{ font-size:15px; }
+
+  /* badges */
+  .badge{
+    font-size:11px; font-weight:600; padding:3px 8px; border-radius:5px;
+    display:inline-block; letter-spacing:.01em; white-space:nowrap;
+  }
+  .badge.done{ background:var(--good-soft); color:var(--good); }
+  .badge.progress{ background:var(--accent-soft); color:var(--accent-strong); }
+  .badge.open{ background:var(--warn-soft); color:var(--warn); }
+  .badge.risk{ background:var(--danger-soft); color:var(--danger); }
+
+  /* cards */
+  .card-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:18px 0; }
+  @media (max-width:640px){ .card-row{ grid-template-columns:1fr; } }
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:18px 20px; box-shadow:var(--shadow);
+  }
+  .card h3{ margin-top:0; font-size:15.5px; }
+  .card .tag{
+    font-size:10.5px; font-weight:600; color:var(--ink-faint);
+    text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; display:block;
+  }
+  .card ul{ margin:10px 0 0; padding-left:18px; font-size:14.5px; }
+  .card li{ margin-bottom:5px; }
+
+  /* tables */
+  .table-scroll{ overflow-x:auto; margin:14px 0 22px; border:1px solid var(--border); border-radius:10px; }
+  table{ border-collapse:collapse; width:100%; font-size:13.5px; min-width:560px; }
+  thead th{
+    background:var(--surface-alt); text-align:left; font-weight:600; font-size:11.5px;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--ink-muted);
+    padding:9px 12px; border-bottom:1px solid var(--border); white-space:nowrap;
+  }
+  tbody td{ padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:top; font-family:"Source Serif 4",serif; font-size:14px;}
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody td:first-child{ font-size:12.5px; font-weight:600; color:var(--ink-muted); }
+
+  /* code block */
+  pre.code{
+    background:var(--surface-alt); border:1px solid var(--border); border-radius:10px;
+    padding:16px 18px; overflow-x:auto; font-size:12.5px; line-height:1.65; color:var(--ink);
+  }
+  pre.code .k{ color:var(--accent-strong); }
+  pre.code .c{ color:var(--ink-faint); font-style:italic; }
+
+  /* decision boxes */
+  .decision{
+    border:1px solid var(--border); border-left:4px solid var(--accent); border-radius:8px;
+    padding:14px 18px; background:var(--surface); margin:16px 0;
+  }
+  .decision.reco{ border-left-color:var(--good); background:var(--good-soft); }
+  .decision h4{ margin:0 0 6px; font-family:"Archivo",sans-serif; font-size:14px; }
+  .decision p{ margin:0; font-size:14px; }
+
+  .opts{ display:grid; gap:12px; margin:16px 0; }
+  .opt{
+    display:grid; grid-template-columns:28px 1fr; gap:10px; align-items:start;
+    padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--surface);
+  }
+  .opt .letter{
+    font-family:"IBM Plex Mono",monospace; font-weight:700; color:var(--accent-strong);
+    background:var(--accent-soft); border-radius:6px; width:28px; height:28px; display:flex;
+    align-items:center; justify-content:center; font-size:13px;
+  }
+  .opt h4{ margin:0 0 4px; font-family:"Archivo",sans-serif; font-size:14.5px; }
+  .opt p{ margin:0; font-size:14px; color:var(--ink-muted); }
+
+  /* open items list */
+  ol.open-list{ padding-left:0; list-style:none; counter-reset:item; margin:18px 0; }
+  ol.open-list li{
+    counter-increment:item; position:relative; padding:12px 16px 12px 48px;
+    border:1px solid var(--border); border-radius:8px; margin-bottom:10px; background:var(--surface);
+    font-size:14.5px;
+  }
+  ol.open-list li::before{
+    content: counter(item);
+    font-family:"IBM Plex Mono",monospace; font-weight:700; font-size:13px;
+    position:absolute; left:14px; top:12px; color:var(--warn);
+    background:var(--warn-soft); width:22px; height:22px; border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  ol.open-list li strong{ display:block; margin-bottom:2px; font-family:"Archivo",sans-serif; font-size:14.5px;}
+
+  figure{ margin:0; }
+  figcaption{ font-size:13px; color:var(--ink-muted); text-align:center; margin-top:12px; padding:0 12px;}
+  .diagram-wrap{ overflow-x:auto; padding:8px 0; }
+  svg.arch{ display:block; margin:0 auto; max-width:100%; height:auto; min-width:720px; }
+  .node-title{ font-family:"Archivo",sans-serif; font-weight:700; font-size:12.5px; fill:var(--ink); }
+  .node-sub{ font-family:"Archivo",sans-serif; font-weight:500; font-size:9.5px; fill:var(--ink-muted); }
+  .step-num{ font-family:"IBM Plex Mono",monospace; font-weight:700; font-size:11px; fill:var(--accent-strong); }
+  .arrow-label{ font-family:"Archivo",sans-serif; font-weight:500; font-size:9.5px; fill:var(--ink-muted); }
+  .arrow-label.warn-label{ fill:var(--warn); }
+  .box-core{ fill:var(--surface); stroke:var(--ink); stroke-width:1.4; }
+  .box-src{ fill:var(--accent-soft); stroke:var(--accent-strong); stroke-width:1.6; }
+  .box-open{ fill:var(--warn-soft); stroke:var(--warn); stroke-width:1.6; stroke-dasharray:6 4; }
+  .box-good{ fill:var(--good-soft); stroke:var(--good); stroke-width:1.6; }
+  .box-inj{ fill:var(--surface-alt); stroke:var(--ink-faint); stroke-width:1.3; stroke-dasharray:3 3; }
+  .flow-line{ stroke:var(--ink); stroke-width:1.4; fill:none; }
+  .bypass-line{ stroke:var(--ink-faint); stroke-width:1.3; fill:none; stroke-dasharray:4 4; }
+  .step-circle{ fill:var(--surface); stroke:var(--accent-strong); stroke-width:1.4; }
+  .box-attacker{ fill:var(--danger-soft); stroke:var(--danger); stroke-width:1.6; stroke-dasharray:5 3; }
+  .zone-band{ fill:var(--surface-alt); stroke:var(--border); stroke-width:1.3; }
+  .zone-label{ font-family:"Archivo",sans-serif; font-weight:700; font-size:10.5px; letter-spacing:.04em; fill:var(--ink-muted); text-transform:uppercase; }
+  .attack-line{ stroke:var(--danger); stroke-width:1.4; fill:none; stroke-dasharray:5 3; }
+  .attack-label{ font-family:"Archivo",sans-serif; font-weight:600; font-size:9.5px; fill:var(--danger); }
+
+  /* source citations */
+  a.cite{ color:var(--accent-strong); text-decoration:none; font-weight:600; font-size:.88em;
+    border-bottom:1px dotted var(--accent); white-space:nowrap; }
+  a.cite:hover{ border-bottom-style:solid; }
+  .src-list{ list-style:none; padding:0; margin:10px 0 0; font-size:12.5px; color:var(--ink-muted); }
+  .src-list li{ padding:5px 0; border-bottom:1px solid var(--border); }
+  .src-list li:last-child{ border-bottom:none; }
+  .src-list a{ color:var(--accent-strong); text-decoration:none; font-weight:600; }
+  .src-list a:hover{ text-decoration:underline; }
+  /* standards mapping box */
+  .standards{ background:var(--accent-soft); border:1px solid var(--accent); border-radius:12px;
+    padding:16px 18px; margin:18px 0; }
+  .standards h4{ margin:0 0 10px; font-family:"Archivo",sans-serif; font-size:15px; color:var(--accent-strong); }
+  .std-row{ display:grid; grid-template-columns:170px 1fr; gap:6px 14px; align-items:baseline;
+    padding:7px 0; border-top:1px solid var(--border); font-size:14px; }
+  .standards .std-row{ border-top-color:var(--accent); }
+  .std-row:first-of-type{ border-top:none; }
+  .std-k{ font-family:"Archivo",sans-serif; font-weight:700; color:var(--ink); font-size:13.5px; }
+  @media (max-width:560px){ .std-row{ grid-template-columns:1fr; gap:2px; } }
+
+  .legend{ display:flex; flex-wrap:wrap; gap:16px; justify-content:center; margin-top:6px; font-size:12px; color:var(--ink-muted); }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .legend i{ width:14px; height:10px; border-radius:2px; display:inline-block; }
+
+  footer{ max-width:840px; margin:52px auto 0; padding-top:20px; border-top:1px solid var(--border);
+    font-size:12px; color:var(--ink-faint); }
+
+  /* ── Bổ sung riêng cho tài liệu tra cứu dày (file kiến thức) ───────────── */
+
+  /* Nhịp giữa các mục: có đường phân cách rõ + thoáng hơn */
+  section + section{ border-top:1px solid var(--border); padding-top:54px; }
+  h3{ margin:32px 0 10px; }
+  section > p{ max-width:68ch; }
+  .section-note{ margin-bottom:18px; }
+
+  /* Danh sách định nghĩa đứng độc lập — thay cho bảng khi nội dung là văn xuôi */
+  .deflist{ margin:16px 0 24px; }
+  .deflist .std-row{ padding:11px 0; grid-template-columns:186px 1fr; }
+  .deflist .std-row:first-of-type{ border-top:1px solid var(--border); }
+  .deflist .std-k{ color:var(--accent-strong); }
+  @media (max-width:560px){ .deflist .std-row{ grid-template-columns:1fr; gap:3px; } }
+
+  /* Khối "mình đang ở đâu" — nhẹ hơn hộp quyết định, có nhãn riêng */
+  .here{ border-left:3px solid var(--accent); background:var(--surface-alt);
+    border-radius:0 8px 8px 0; padding:14px 17px; margin:18px 0; }
+  .here-label{ font-family:"Archivo",sans-serif; font-size:10.5px; font-weight:700;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--accent-strong);
+    display:block; margin-bottom:6px; }
+  .here p{ margin:0 0 10px; font-size:14.5px; }
+  .here p:last-child{ margin-bottom:0; }
+  .here .std-row{ font-size:14px; border-top-color:var(--border); }
+
+  /* Bảng: thoáng hơn, cột đầu rõ vai trò hơn */
+  thead th{ padding:10px 13px; }
+  tbody td{ padding:11px 13px; }
+  tbody td:first-child{ color:var(--ink); font-size:13px; }
+
+  /* Bảng tra thuật ngữ: gọn, không ép bề ngang */
+  .glossary table{ min-width:440px; }
+  .glossary tbody td:first-child{ white-space:nowrap; }
+
+  /* Hộp quyết định trong tài liệu này dùng tiết chế hơn */
+  .decision{ margin:18px 0; }
+  .decision h4{ font-size:14.5px; margin-bottom:8px; }
+
+
+  .decision.warn{ border-left-color:var(--warn); background:var(--warn-soft); }
+  .decision.risk{ border-left-color:var(--danger); background:var(--danger-soft); }
+  .phase-a{ border-left-color:var(--accent); }
+  table td, table th{ vertical-align:top; }
+</style>
+
+<style>
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ color-scheme:dark; } }
+  :root[data-theme="dark"]{ color-scheme:dark; }
+
+  /* mục lục */
+  nav.toc{ max-width:840px; margin:26px auto 0; display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:18px; }
+  nav.toc .grp{ display:flex; flex-direction:column; gap:4px; }
+  nav.toc .grp-t{ font-family:"Archivo",sans-serif; font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:4px; }
+  nav.toc a{ font-family:"Archivo",sans-serif; font-size:14px; text-decoration:none; color:var(--ink); padding:3px 0; border-bottom:1px dotted var(--border); }
+  nav.toc a span{ color:var(--accent-strong); font-weight:700; margin-right:6px; font-variant-numeric:tabular-nums; }
+  nav.toc a:hover{ color:var(--accent-strong); }
+
+  /* phần lớn A/B/C */
+  .part{ max-width:840px; margin:64px auto 0; padding:18px 0 0; border-top:3px solid var(--ink); }
+  .part p{ margin:0; font-family:"Archivo",sans-serif; }
+  .part .pk{ font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-strong); }
+  .part .pt{ font-size:26px; font-weight:800; margin-top:4px; }
+  .part + section{ border-top:none !important; padding-top:30px !important; }
+
+  /* câu nói mẫu */
+  .say{ border:1px solid var(--accent); border-radius:10px; padding:14px 18px 14px; margin:16px 0; background:var(--surface); }
+  .say-l{ font-family:"Archivo",sans-serif; font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--accent-strong); display:block; margin-bottom:6px; }
+  .say p{ margin:0 0 8px; font-style:italic; font-size:15px; }
+  .say p:last-child{ margin-bottom:0; }
+
+  /* ô cần tự điền */
+  mark.fill{ background:var(--warn-soft); color:var(--warn); font-family:"Archivo",sans-serif; font-weight:600; font-size:.86em; padding:1px 6px; border-radius:4px; border:1px dashed var(--warn); white-space:normal; }
+
+  /* hỏi đáp */
+  .qa-tools{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:12px 0 4px; }
+  .qa-tools button{ font-family:"Archivo",sans-serif; font-size:13px; font-weight:600; padding:7px 14px; border-radius:7px; border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent-strong); cursor:pointer; }
+  .qa-tools button:focus-visible, .qa-q:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .qa-tools span{ font-size:13px; color:var(--ink-muted); }
+  .qa{ border-top:1px solid var(--border); padding:14px 0 12px; }
+  .qa:last-child{ border-bottom:1px solid var(--border); }
+  .qa-q{ font-family:"Archivo",sans-serif; font-weight:700; font-size:15px; margin:0 0 6px; display:flex; gap:10px; align-items:baseline; }
+  .qa-q .qn{ font-size:11.5px; color:var(--accent-strong); min-width:34px; font-variant-numeric:tabular-nums; flex:none; }
+  .qa-a{ padding-left:44px; font-size:14.5px; }
+  .qa-a p{ margin:0 0 8px; }
+  .qa-a p:last-child{ margin-bottom:0; }
+  .qa-a ul{ margin:4px 0 8px; padding-left:18px; }
+  .qa-a li{ margin-bottom:3px; }
+  .qa-hint{ display:none; padding-left:44px; font-size:13px; color:var(--ink-faint); font-family:"Archivo",sans-serif; }
+  .quiz .qa-q{ cursor:pointer; }
+  .quiz .qa:not(.open) .qa-a{ display:none; }
+  .quiz .qa:not(.open) .qa-hint{ display:block; }
+  .qa .lvl{ font-family:"Archivo",sans-serif; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:2px 6px; border-radius:4px; background:var(--surface-alt); color:var(--ink-muted); flex:none; }
+  .qa .lvl.hard{ background:var(--danger-soft); color:var(--danger); }
+  @media (max-width:560px){ .qa-a,.qa-hint{ padding-left:0; } }
+
+  /* bảng số liệu */
+  td.n, th.n{ font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
+  .kicker{ font-family:"Archivo",sans-serif; font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); margin:26px 0 6px; }
+  pre.code{ white-space:pre; }
+  .legend-row{ display:flex; flex-wrap:wrap; gap:8px 14px; margin:10px 0 4px; font-size:13px; color:var(--ink-muted); align-items:center; }
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
+</style>
+<style>
+  .qa-block{ max-width:840px; margin:0 auto; }
+  .ans{ padding:22px 0 18px; border-top:1px solid var(--border); }
+  .ans h3{ margin:0 0 10px; font-size:17px; line-height:1.4; display:flex; gap:12px; align-items:baseline; cursor:default; }
+  .ans h3 .qn{ font-size:12px; font-weight:700; color:var(--accent-strong); min-width:30px; flex:none; font-variant-numeric:tabular-nums; }
+  .ans .body{ padding-left:42px; }
+  .ans .body p{ margin:0 0 12px; font-size:15.5px; max-width:68ch; }
+  .ans .body p:last-child{ margin-bottom:0; }
+  .ans .note{ font-family:"Archivo",sans-serif; font-size:12.5px; color:var(--ink-muted); background:var(--surface-alt); border-radius:6px; padding:6px 10px; display:inline-block; margin-top:4px; }
+  .ans .hint{ display:none; padding-left:42px; font-size:13px; color:var(--ink-faint); font-family:"Archivo",sans-serif; }
+  .quiz .ans h3{ cursor:pointer; }
+  .quiz .ans:not(.open) .body{ display:none; }
+  .quiz .ans:not(.open) .hint{ display:block; }
+  @media (max-width:560px){ .ans .body, .ans .hint{ padding-left:0; } }
+</style>
+
+<header class="top">
+  <p class="eyebrow">Phỏng vấn AI Security · câu hỏi về đề tài · 24/09/2026</p>
+  <h1 class="title">Hỏi đáp phỏng vấn đề tài — trả lời như đang nói</h1>
+  <p class="dek">Mỗi câu hỏi đi kèm một câu trả lời viết thành đoạn văn ở ngôi thứ nhất, giữ đúng thuật ngữ kỹ thuật nhưng giải thích luôn trong câu để người nghe theo kịp. Con số lấy từ code <code>KMA_AI_AGENT</code> và tài liệu đề tài. Chỗ nào chưa làm xong được ghi chú rõ để cậu không nói quá.</p>
+  <div class="qa-tools">
+    <button type="button" id="quizBtn" aria-pressed="false">Ẩn câu trả lời để tự luyện</button>
+    <span id="quizNote">Đang hiện toàn bộ câu trả lời.</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Mục lục">
+  <div class="grp"><span class="grp-t">Tổng quan</span>
+    <a href="#t1"><span>1–3</span>Giới thiệu và động lực</a></div>
+  <div class="grp"><span class="grp-t">EdgeGuard-AI</span>
+    <a href="#t2"><span>4–10</span>Quy trình và phương pháp</a></div>
+  <div class="grp"><span class="grp-t">Lõi Agent và LLM</span>
+    <a href="#t3"><span>11–19</span>Agent, RAG, ảo giác, mô hình</a></div>
+  <div class="grp"><span class="grp-t">AegisSOC và đánh giá</span>
+    <a href="#t4"><span>20–28</span>Phương pháp, đo, hạn chế</a></div>
+</nav>
+
+<section id="t1" class="qa-block">
+  <h2>Giới thiệu và động lực</h2>
+
+  <div class="ans"><h3><span class="qn">1</span>Em giới thiệu tổng quan các đề tài của em.</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Em có một lõi AI Agent tự xây từ đề tài trước, tên là "Nghiên cứu, mô phỏng và đánh giá Autonomous AI Agents trong tự động hoá điều tra và ứng phó sự cố dựa trên MITRE ATT&amp;CK". Lõi này là một pipeline LangGraph gồm các bước trích xuất dấu hiệu, tương quan sự kiện, truy hồi tri thức, suy luận bằng LLM, tự kiểm tra và ra quyết định ứng phó. LLM là Llama 3.1 8B chạy cục bộ qua Ollama, được đóng gói thành API bằng FastAPI và có dashboard Streamlit.</p>
+    <p>Từ lõi đó em phát triển hai đề tài. EdgeGuard-AI là đề tài NCKH, áp dụng cho mạng camera AI ở biên: hệ thống vừa phát hiện tấn công đối kháng nhắm vào model thị giác, vừa phát hiện tấn công ở tầng hệ điều hành trên gateway, rồi để Agent tương quan hai nguồn. AegisSOC là đề tài môn học, sau này phát triển thành đồ án tốt nghiệp, áp dụng cho SOC doanh nghiệp với ba nguồn log web, endpoint và mạng; trọng tâm của nó là làm sao để chính Agent không bị thao túng bởi dữ liệu nó đọc. Có thể tóm lại: EdgeGuard hỏi AI có bị nhìn nhầm không, còn AegisSOC hỏi AI có bị xui khiến không.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">2</span>Vì sao em chọn hướng này?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Em học An toàn thông tin và đang thực tập AI Engineer, nên em quan tâm đúng chỗ giao nhau: dùng AI để hỗ trợ SOC, và bảo vệ chính hệ thống AI đó. Với EdgeGuard, động lực đến từ thực tế là camera IP thường nằm ngoài tầm giám sát của EDR. Đầu năm 2025 có ca nhóm ransomware Akira bị EDR chặn trên máy Windows đã chuyển sang dùng một webcam Linux không được giám sát làm bàn đạp. Camera biên là điểm mù, và model AI chạy trên đó lại có thêm một bề mặt tấn công riêng mà log hệ điều hành không nhìn thấy.</p>
+    <p>Với AegisSOC, em thấy khi Agent được cấp quyền chặn IP hay cô lập máy, sai lầm của nó không còn là "tốn công người" mà thành sự cố thật. Trong khi đó dữ liệu Agent đọc ở SOC, như User-Agent, URI hay dòng lệnh, phần lớn do bên ngoài kiểm soát. OWASP năm 2026 cũng ra riêng bộ Top 10 for Agentic Applications cho đúng loại rủi ro này, nên em thấy đây là hướng vừa thực tế vừa đúng thời điểm.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">3</span>Vai trò cụ thể của em là gì?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Lõi Agent em tự viết. Ở EdgeGuard-AI em là trưởng nhóm ba người và phụ trách toàn bộ phần AI: nhánh thị giác, bộ lọc ML trước LLM và Agent. Một bạn phụ trách Sysmon, Splunk và cơ sở dữ liệu, một bạn phụ trách mô phỏng tấn công và chuẩn bị dataset. Vì ba người code song song nên em chốt trước một hợp đồng dữ liệu gồm bốn khối JSON: alert thị giác, alert Sysmon sau Splunk, alert sau bộ lọc và ticket, để các phần ráp vào không bị lệch. AegisSOC ở giai đoạn môn học em làm một mình.</p>
+  </div></div>
+</section>
+
+<section id="t2" class="qa-block">
+  <h2>EdgeGuard-AI — quy trình và phương pháp</h2>
+
+  <div class="ans"><h3><span class="qn">4</span>Em hãy trình bày rõ quy trình end-to-end của EdgeGuard-AI.</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Hệ thống có ba lớp theo mô hình phân vùng Purdue: camera ở hiện trường, Smart Edge Gateway chạy Windows Server ở giữa, và lớp phân tích SOC ở trên. Dữ liệu đi theo hai nhánh độc lập rồi hợp lại ở Agent.</p>
+    <p>Ở nhánh thị giác, khung hình từ luồng RTSP đi vào YOLO11s để phát hiện người. Với mỗi ứng viên người, em tính Grad-CAM để lấy bản đồ nhiệt thể hiện vùng mà model dựa vào khi ra quyết định. Từ bản đồ nhiệt em tính ba chỉ số C, D, E, đưa vào Logistic Regression để ra suspicion_score. Nếu điểm cao, hai phương pháp làm sạch độc lập là Jedi và LGS được chạy, rồi cho YOLO nhìn lại để xác nhận. Kết quả được đóng gói thành JSON, ký HMAC-SHA256 và gửi vào Splunk qua HTTP Event Collector.</p>
+    <p>Ở nhánh hệ điều hành, Sysmon trên gateway ghi các sự kiện tiến trình, kết nối mạng, nạp module và truy cập tiến trình, chuyển về Splunk qua Universal Forwarder. Correlation search trong Splunk biến log thô thành alert. Cả hai loại alert đều mang severity_id và confidence_id chuẩn hoá theo kiểu OCSF.</p>
+    <p>Sau Splunk là ML Pre-filter, quyết định alert nào đáng tốn một lượt gọi LLM. Alert được cho qua sẽ vào Agent: Agent kiểm HMAC, mở ticket hoặc gộp vào ticket đang mở cùng device_id, làm giàu ngữ cảnh, truy hồi tri thức MITRE, suy luận bằng Llama 3.1 8B, đi qua hai tầng an toàn, và hành động có hậu quả được đẩy cho người duyệt qua Telegram. Mọi bước ghi vào audit_log của ticket.</p>
+    <p class="note">Trạng thái: nhánh thị giác đã chạy; ticket, bộ lọc ML và phần đo Agent đang ở mức thiết kế.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">5</span>Nhánh thị giác phát hiện tấn công đối kháng bằng phương pháp gì?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Mối đe doạ là adversarial patch: một vùng ảnh được tối ưu bằng gradient trên chính model, sao cho objectness score của YOLO ở vùng cơ thể giảm xuống dưới ngưỡng, khiến người không còn được phát hiện. Em không cố làm YOLO bền hơn ngay từ đầu, mà nhìn vào bên trong model để phát hiện khi nó đang bị tác động.</p>
+    <p>Công cụ là Grad-CAM. Em lấy gradient của điểm số theo feature map ở một layer tích chập, lấy trung bình để ra trọng số cho từng kênh, rồi cộng có trọng số các feature map và giữ phần dương qua ReLU. Với người bình thường, vùng nóng trải theo hình cơ thể. Khi có patch, vùng nóng có xu hướng dồn cục, lệch khỏi tâm bounding box và lộn xộn hơn. Em lượng hoá ba đặc điểm đó bằng ba chỉ số: C là độ tập trung, D là độ lệch tâm so với bounding box, E là entropy cục bộ chuẩn hoá. Logistic Regression gộp ba chỉ số thành xác suất nghi ngờ; dùng cả ba vì một patch có thể né một chỉ số nhưng khó né cả ba.</p>
+    <p>Bước cuối là xác nhận độc lập. Jedi (CVPR 2023) khoanh vùng nghi ngờ bằng bản đồ entropy rồi inpaint, trong thử nghiệm của em inpaint Telea của OpenCV cho kết quả tốt nhất. LGS (WACV 2019) làm mượt vùng có gradient cao bất thường. Sau khi làm sạch, nếu YOLO phát hiện lại được người thì xác nhận có patch. Em không dùng các phương pháp có chứng nhận như PatchCleanser hay làm sạch bằng diffusion vì chúng cần nhiều lượt suy luận, quá nặng cho thời gian thực ở biên.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">6</span>Vì sao em tự viết Grad-CAM và em chọn layer như thế nào?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Thư viện pytorch-grad-cam thiết kế cho bài toán phân loại, còn YOLO là bài toán phát hiện có nhiều đầu ra, nên em tự hook forward và backward vào layer cần đo. Khi tự viết em gặp và sửa ba lớp lỗi thật: heatmap bị lệch vì bỏ qua phần đệm letterbox khi resize, heatmap tràn ra ngoài người nên phải giới hạn trong bounding box, và lỗi tensor khi dùng chung một instance model cho cả suy luận lẫn lan truyền ngược.</p>
+    <p>Chọn layer thì ban đầu em chọn bằng mắt và chọn sai. Sau đó em định nghĩa một chỉ số: tỷ lệ năng lượng heatmap nằm trong bounding box chia cho tỷ lệ diện tích bounding box. Lớn hơn 1 nghĩa là model chú ý vào người nhiều hơn ngẫu nhiên. Chạy trên 99 ảnh, layer 22 có trung vị 1,546, cao nhất; layer 19 là 1,101. Em dùng trung vị vì có một ảnh ngoại lai làm trung bình của layer 16 bị đẩy lên sai lệch.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">7</span>Nhánh thị giác đã có kết quả gì?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Kết quả định lượng rõ nhất là thí nghiệm đối chứng cùng tư thế, cùng khoảng cách: không có patch thì tỷ lệ năng lượng heatmap ở layer 22 là khoảng 1,14 và 1,26; có patch thì tụt còn 0,011 và 0,223. Điều thú vị là patch in ra chưa đủ mạnh để làm YOLO mất người, confidence vẫn khoảng 0,93, nhưng đã làm cơ chế chú ý của model rối rõ rệt. Đó chính là tín hiệu mà ba chỉ số C, D, E khai thác.</p>
+    <p>Ngoài ra em đổi từ YOLO11n sang YOLO11s sau khi đo: thời gian forward trên GPU 13,15 ms so với 13,52 ms, chỉ chậm khoảng 3%, trong khi mAP trên COCO tăng từ 39,5 lên 47,0. Phần phát hiện và chọn ứng viên có 17 unit test. Em cũng tìm ra một lỗi an ninh thật: ban đầu pipeline chỉ phân tích người có confidence cao nhất trong khung, nên người bị patch có confidence thấp đứng cạnh người khác sẽ bị bỏ qua; em sửa để kiểm tra mọi ứng viên đáng ngờ.</p>
+    <p class="note">Chưa có: precision/recall end-to-end, vì bộ 400 ảnh sạch và 400 ảnh có patch đang thu, Logistic Regression chưa train.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">8</span>Em đánh giá nhánh thị giác bằng phương pháp nào?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Em dùng ablation study, tức là thêm từng thành phần và đo đóng góp riêng của nó, thay vì chỉ đo pipeline cuối. Có bốn cấu hình. B1 là YOLO, Grad-CAM, Jedi làm mốc. B2 thêm MS-GradCAM, tức trung bình 12 heatmap trên các bản ảnh có thêm nhiễu để heatmap ổn định hơn; tên này do nhóm tự đặt nên em luôn nói rõ. B2a thêm EMA để làm mượt heatmap theo thời gian giữa các khung. B3 thêm tracking bằng IoU và Temporal Jedi. Tách như vậy để tránh ngộ nhận, ví dụ EMA và chỉ số ổn định thời gian cùng đo "độ mượt", nếu không tách thì chỉ số sẽ tự khen kỹ thuật.</p>
+    <p>Kết quả trình bày thành sáu bảng: định vị XAI, ổn định thời gian, xác nhận bằng Jedi, precision/recall/F1/FPR đầu-cuối, độ trễ và FPS, và bảng F là đường cong độ bền. Bảng F thay cho thực nghiệm in patch vì nhóm thiếu thiết bị: em mô phỏng các suy giảm vật lý như nhiễu cảm biến, nén JPEG, mờ chuyển động, méo phối cảnh và đổi sáng ở bốn mức, rồi đo phương pháp còn phát hiện được tới mức nào. Em ghi rõ đây là proxy, không tương đương thực nghiệm vật lý. Pipeline triển khai cuối cùng là cái chính xác nhất mà vẫn đạt FPS yêu cầu ở biên, không nhất thiết là B3.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">9</span>Nhánh hệ điều hành và việc bảo đảm toàn vẹn dữ liệu làm thế nào?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Gateway chạy Windows Server vì các nền tảng quản lý video doanh nghiệp như Milestone hay Genetec chạy trên Windows, và Sysmon là bộ telemetry trưởng thành nhất trên nền này. Em dùng các nhóm sự kiện tạo tiến trình, kết nối mạng, nạp module và truy cập tiến trình để phát hiện các kỹ thuật như dò mật khẩu dịch vụ RTSP, chèn mã vào tiến trình xử lý video, hoặc chiếm quyền điều khiển camera; cả ba nối với nhau qua T1078 Valid Accounts. Log đi Universal Forwarder có TLS, alert thị giác đi HEC có token.</p>
+    <p>HEC token chỉ trả lời "ai được ghi vào Splunk", không trả lời "nội dung có bị sửa trên đường đi không". Vì alert là bằng chứng, em ký HMAC-SHA256 ở tầng ứng dụng trên toàn bộ các trường, để kiểm tra lại được cả khi đọc từ Splunk sau này. So chữ ký bằng <code>hmac.compare_digest()</code> để tránh timing attack. Nếu chữ ký sai, alert không bao giờ được đưa vào tự động hoá nhưng cũng không bị vứt: hệ sinh sự kiện integrity_violation, giữ nguyên payload làm bằng chứng và báo thẳng cho người, ánh xạ vào NIST SP 800-53 AU-9(3), SI-7(2) và SI-7(5). Việc định tuyến dựa trên severity_id và confidence_id theo kiểu OCSF, chính sách để trong file YAML thay vì viết cứng trong code.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">10</span>ML Pre-filter của em hoạt động thế nào và vì sao cần nó?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Nút thắt của hệ là LLM: Llama 8B trên GPU 8 GB mất vài tới hơn chục giây mỗi ticket, và bước Reflection còn nhân đôi số lượt gọi. Pre-filter là bài toán phân loại nhị phân "alert này có đáng tốn một lượt LLM không", không phải bộ phát hiện mã độc. Nó là một OR-gate: nếu alert thuộc loại luôn phải phân tích theo bảng chính sách thì cho qua; nếu không thì model cây chấm xác suất, vượt ngưỡng mới cho qua. Alert thị giác luôn đi cửa thứ nhất, vì model cây được train trên đặc trưng log hệ điều hành, không đọc được suspicion_score.</p>
+    <p>Đặc trưng gồm có khớp luật Sigma không, mức độ luật, tần suất sự kiện trong 5 phút, độ dài và entropy dòng lệnh, và điểm lịch sử IP. Em bake-off Random Forest với LightGBM bằng StratifiedKFold, chấm theo recall của lớp độc chứ không theo accuracy, vì bỏ lọt một tấn công đắt hơn nhiều so với gửi nhầm một alert lành. Để chứng minh không bỏ lọt, em chạy shadow mode trước, tức là tính quyết định và ghi log nhưng vẫn cho mọi alert đi tiếp; khi bật thật thì giữ 5% ngẫu nhiên trong số alert đáng lẽ bị loại để ước lượng tỷ lệ bỏ lọt không thiên lệch. Mốc đối chiếu là hệ AACT trong một SOC thật giảm 61% alert với tỷ lệ bỏ lọt 1,36%.</p>
+    <p class="note">Lõi cũ đã có bộ lọc ba tầng dựa trên luật; bản ML là phần nâng cấp, đang chờ dataset.</p>
+  </div></div>
+</section>
+
+<section id="t3" class="qa-block">
+  <h2>Lõi Agent, RAG và LLM</h2>
+
+  <div class="ans"><h3><span class="qn">11</span>Kiến trúc lõi Agent của em gồm những gì?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Lõi là một LangGraph StateGraph. State là một TypedDict dùng chung cho mọi node, chứa log thô, IOC trích xuất được, ngữ cảnh RAG, kết luận của LLM, quyết định hành động và một danh sách investigation_notes được cộng dồn qua từng node làm audit trail. Đồ thị có sáu node chính nối tiếp: extractor, correlator, retriever, analyzer, reflection, responder, và một cạnh điều kiện sau reflection để rẽ sang nhánh human review.</p>
+    <p>Extractor không dùng LLM: nó URL-decode, giải base64 trong body, trích IP, domain, URL bằng regex và dò các dấu hiệu tấn công web phổ biến, DNS tunneling qua entropy Shannon của subdomain, cùng các header bất thường; mất khoảng 0,1 giây. Correlator gom sự kiện cùng source IP trong cửa sổ 15 phút, ánh xạ sang giai đoạn kill chain và nâng mức độ của cả incident theo chuỗi. Retriever lấy tri thức từ ChromaDB. Analyzer gọi Llama 3.1 8B. Reflection kiểm tra lại. Responder chọn hành động theo bảng quyết định và thực thi ở chế độ SIMULATION hoặc LIVE, có cảnh báo Telegram.</p>
+    <p>Bên ngoài đồ thị là FastAPI với hai endpoint phân tích đơn lẻ và theo lô, bộ lọc ba tầng trước LLM, một tiến trình nền 30 giây một lần kiểm tra toàn vẹn kho ChromaDB, và dashboard Streamlit có live feed.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">12</span>Vì sao em chọn LangGraph và chỉ một agent, không dùng multi-agent?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Quy trình ứng phó sự cố cần rẽ nhánh (tự xử lý hay chuyển người), cần quay vòng (khi có bằng chứng mới thì đánh giá lại) và cần dừng giữa chừng chờ người duyệt. Chain tuyến tính kiểu LangChain cổ điển khó làm những việc này, còn LangGraph biểu diễn chúng tự nhiên bằng node, cạnh điều kiện và state dùng chung.</p>
+    <p>Em không dùng multi-agent vì hệ này có quyền hành động thật. Điều quan trọng nhất là truy vết được ai quyết định gì và chặn được quyết định sai. Một agent đi qua đồ thị xác định, có lớp luật tất định chốt cuối, dễ kiểm toán hơn nhiều agent tự trao đổi với nhau. Nếu gọi theo tên mẫu thiết kế thì đây là agent kiểu ReAct có tool use, thêm một tầng Reflection và một tầng guardrail tất định, giữ human-in-the-loop cho hành động có hậu quả.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">13</span>Ticket và bước làm giàu ngữ cảnh được thiết kế ra sao?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Em học theo mô hình SOAR ở doanh nghiệp: đơn vị xử lý là ticket chứ không phải alert rời. Ticket có ticket_id, status, alert gốc giữ nguyên, danh sách alert liên quan, dữ liệu làm giàu, kết quả RAG, kết luận của LLM, hành động đã làm và audit_log. Một chi tiết em rất chú ý là alert liên quan phải ghi thành câu tóm tắt có nội dung, ví dụ "ba phút trước, cùng IP, 12 lần đăng nhập thất bại", chứ không chỉ ghi mã số. LLM không thể suy luận đúng về thứ nó chỉ thấy ID.</p>
+    <p>Làm giàu dùng checklist cố định chứ không để LLM tự quyết định tra gì, vì doanh nghiệp hiện cũng chưa dùng ổn định cách để LLM tự chọn. Có ba nguồn: lịch sử alert trong SQLite, file kiểm kê tài sản YAML và tra danh tiếng IP qua AbuseIPDB. Mỗi lệnh tra có timeout; lỗi thì bỏ trường đó và đi tiếp. Khi hai alert của cùng một vụ tới lệch nhau vài chục giây, em làm theo cách của Microsoft Sentinel và Splunk ITSI là cho alert tới sau nhập vào ticket đang mở cùng device_id trong 5 phút, rồi đánh giá lại, tối đa 3 lần, và mọi hành động phải idempotent.</p>
+    <p class="note">Lõi cũ đã có lịch sử qua correlator; ticket và hai nguồn làm giàu còn lại đang được thêm.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">14</span>Em trình bày chi tiết RAG của em.</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Corpus gồm MITRE ATT&amp;CK v19 ở dạng STIX và 311 luật Sigma, trong đó 3 luật tự viết, còn lại lấy từ SigmaHQ nhóm web, linux và network. Khi nạp MITRE, em không chỉ lấy mô tả kỹ thuật mà còn đi theo quan hệ "mitigates" trong STIX để gắn biện pháp giảm thiểu vào cùng tài liệu, và bỏ các kỹ thuật đã bị thu hồi hoặc deprecated. Metadata mỗi tài liệu gồm technique_id, tactic, platform, data source, phiên bản ATT&amp;CK, tên embedding model và hash SHA-256 nội dung.</p>
+    <p>Tài liệu được cắt bằng RecursiveCharacterTextSplitter, 800 ký tự, chồng 120 ký tự, và ID của mỗi chunk là hash của nội dung cộng metadata, nên nạp lại cho ra đúng ID cũ và không bị trùng. Embedding model là all-MiniLM-L6-v2, vector 384 chiều. Kho có 7.720 chunk, gồm 6.994 từ MITRE và 725 từ Sigma.</p>
+    <p>Khi truy hồi, em tìm tách hai luồng có filter theo nguồn: 2 chunk Sigma và 5 chunk MITRE, xếp theo trust score (Sigma 1,0, MITRE 0,8), giữ 3 chunk, cho qua một bộ lọc chỉ nhận nguồn đã kiểm duyệt. Trust score cao nhất được đưa sang Analyzer; nếu thấp, độ tự tin của kết luận bị giảm. Theo phân loại của Gao và cộng sự, đây là Naive RAG có một phần xử lý sau truy hồi.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">15</span>RAG hiện tại có hạn chế gì và em nâng cấp thế nào?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>all-MiniLM-L6-v2 nhỏ, chủ yếu cho tiếng Anh và cắt đầu vào ở 256 token. Tìm theo nghĩa bằng vector cũng xử lý kém các chuỗi định danh như T1078 hay tên tiến trình, vì chúng không mang nghĩa ngữ nghĩa rõ. Thêm nữa, xếp theo trust score thì luật Sigma luôn đứng trước MITRE, dù có lúc đoạn MITRE liên quan hơn.</p>
+    <p>Hướng nâng cấp: thêm hybrid search, tức tìm theo từ khoá bằng BM25 song song với tìm theo vector rồi trộn kết quả; thêm re-ranker cross-encoder để chấm lại độ liên quan và chỉ giữ 3–5 đoạn tốt nhất; và cắt theo cấu trúc, mỗi kỹ thuật MITRE một đơn vị, vì tài liệu vốn đã chia sẵn như vậy. Ở AegisSOC, corpus lớn hơn và câu hỏi mở hơn nên em cho Agent quyền tự quyết định có tra thêm không, có giới hạn số vòng, tức Agentic RAG. GraphRAG em để sau, khi đo được truy vấn nhiều bước thật sự thất bại.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">16</span>Em làm gì để chống ảo giác của LLM? Nêu cụ thể.</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Nguyên tắc đầu tiên là phân vai: LLM không phải bộ phát hiện. Dấu hiệu tấn công do Extractor, luật Sigma và nhánh thị giác tìm ra, đều là cơ chế tất định hoặc đo được; LLM chỉ suy luận và xếp mức độ trên bằng chứng đã có. Như vậy phạm vi LLM được phép sai hẹp lại.</p>
+    <p>Ở bước sinh, em ép đầu ra theo schema bằng Pydantic qua <code>with_structured_output</code>, gồm bảy trường: chuỗi suy luận, mã MITRE, mức độ, độ mạnh bằng chứng, độ tự tin, cờ khả nghi và lý do; có validator chuẩn hoá mã MITRE. Temperature đặt 0 để kết quả tái lập được. Prompt luôn kèm tài liệu truy hồi, và nếu trust score thấp thì độ tự tin bị phạt; nếu mức độ LOW mà vẫn gán mã MITRE thì hệ xoá mã và giới hạn độ tự tin 0,3.</p>
+    <p>Sau khi sinh, Reflection đối chiếu kết luận với log và tài liệu, và chỉ được phép hạ độ tự tin, không được nâng. Nhưng em không dựa vào Reflection làm lưới chính, vì nghiên cứu của Huang và cộng sự ở ICLR 2024 cho thấy LLM tự sửa suy luận mà không có thông tin ngoài thì không cải thiện ổn định. Lưới chính là luật tất định trong code. Em có trải nghiệm thật ở đây: Llama 8B không theo được quy tắc nhiều điều kiện trong prompt, có lần còn khẳng định IP chưa có tiền sử trong khi nó đã có cảnh báo mức cao. Nên em chuyển quy tắc đó thành code: đăng nhập thành công từ IP đã có cảnh báo HIGH thì tự nâng lên CRITICAL và thay phần lý do bằng lý do lấy từ dữ liệu; năm lần HIGH từ cùng IP thì tự leo thang. Cuối cùng, hành động do bảng quyết định mức độ nhân độ mạnh bằng chứng chọn, IP được kiểm định dạng trước khi thực thi, và việc có hậu quả được đưa cho người duyệt.</p>
+    <p class="note">Hướng tiếp: kiểm tra mọi mã MITRE và IP trong kết luận phải có trong dữ liệu; đặt rõ num_ctx để lời nhắc dài không bị cắt; đo bằng bộ tình huống có đáp án.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">17</span>Vì sao em dùng Llama 3.1 8B và em lượng tử hoá nó thế nào?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Em chọn chạy cục bộ vì log và hình ảnh giám sát không nên rời hệ thống, hệ phải hoạt động khi mất mạng, và tác vụ của LLM ở đây hẹp và có cấu trúc. Với tác vụ như vậy, chất lượng phụ thuộc vào đầu vào rõ ràng, tri thức truy hồi tốt và lớp kiểm soát tất định nhiều hơn là kích thước model.</p>
+    <p>Llama 3.1 8B có khoảng 8,03 tỷ tham số, 32 layer, dùng Grouped-Query Attention với 32 head query nhưng chỉ 8 head key-value. Ở FP16 trọng số cần khoảng 16 GB, không vừa RTX 4060 8 GB. Em dùng bản GGUF Q4_K_M mặc định của Ollama, khoảng 4,9 GB; K-quant lượng tử hoá theo khối có hệ số scale riêng và giữ một số tensor nhạy cảm ở độ chính xác cao hơn. KV cache ở FP16 tốn khoảng 128 KB mỗi token, nên ngữ cảnh 4k cần khoảng 0,5 GB; nhờ GQA con số này nhỏ đi bốn lần. Theo một đánh giá trên đúng Llama-3.1-8B-Instruct, perplexity chỉ tăng từ 7,32 lên 7,56 và điểm trung bình benchmark từ 69,47 xuống 69,15, trong khi dung lượng giảm gần 70%. Em không xuống dưới 4 bit vì chất lượng giảm nhanh hơn nhiều; nếu cần nhẹ hơn em chọn model nhỏ hơn.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">18</span>Em có fine-tune model không?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Với LLM của Agent thì không, và đó là lựa chọn có chủ đích. RAG đưa tri thức vào qua tài liệu, còn fine-tune thay đổi hành vi của model. Tri thức MITRE thay đổi liên tục và cần trích dẫn nguồn nên hợp với RAG. Lõi cũ có tự ghi 1.048 mẫu từ 144 incident theo định dạng instruction–output để sau này fine-tune, nhưng nhãn đó do chính LLM sinh và chưa có người duyệt; train lại trên đầu ra của chính mình thì model học lại lỗi của nó. Hướng đúng là để analyst duyệt và sửa trước.</p>
+    <p>Chỗ em có dùng fine-tune là những bài toán phân loại: bộ phát hiện tiêm lệnh dựa trên DeBERTa-v3, và YOLO11s trên tập trộn ảnh thường với ảnh có patch. Nếu phải fine-tune Llama trên GPU 8 GB thì em dùng QLoRA: trọng số gốc nén 4 bit NF4 và đóng băng, chỉ train các adapter LoRA có hạng thấp. Với ma trận 4096 × 4096 và hạng 16, số tham số train chỉ khoảng 0,8%. Unsloth ghi mức tối thiểu khoảng 6 GB VRAM cho model 8B với QLoRA. Quy trình sẽ là SFT trên các ca đã duyệt, sau đó DPO trên các cặp câu trả lời tốt hơn và kém hơn, và luôn đo lại trên bộ tình huống.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">19</span>Em bảo vệ kho tri thức RAG khỏi bị đầu độc như thế nào?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Nếu kho tri thức bị cài tài liệu sai, mọi kết luận sau đó đều sai theo, nên em coi đây là một bề mặt cần bảo vệ riêng. Lõi hiện có ba lớp: một tiến trình nền lấy danh sách ID tài liệu làm baseline và cứ 30 giây kiểm tra một lần, tài liệu mới không rõ nguồn thì sinh sự kiện rag_integrity_violation đẩy vào chính pipeline để Agent báo động; bộ lọc ở bước truy hồi chỉ nhận tài liệu thuộc các nguồn đã kiểm duyệt; và bước Reflection có luật tất định đối chiếu tài liệu với bằng chứng trong log.</p>
+    <p>Các lớp này dựa nhiều vào metadata đi kèm tài liệu, nên ở AegisSOC em nâng lên kiểm tra nguồn gốc: lúc nạp, ghi một manifest chứa hash SHA-256 của từng chunk và ký bằng HMAC với khoá bí mật; lúc truy hồi, chỉ nhận chunk có trong manifest, trust score lấy từ manifest. Phép đo là so tỷ lệ tài liệu lạ bị chặn và tỷ lệ chặn nhầm giữa cách cũ và cách mới.</p>
+  </div></div>
+</section>
+
+<section id="t4" class="qa-block">
+  <h2>AegisSOC, phương pháp đánh giá và hạn chế</h2>
+
+  <div class="ans"><h3><span class="qn">20</span>Em trình bày quy trình và kiến trúc của AegisSOC.</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>AegisSOC đưa lõi Agent vào một SOC nhỏ chạy đầu-cuối trên lab ba máy. Máy chính chạy Ollama với Llama 3.1 8B, API FastAPI và LangGraph, dashboard Streamlit và Splunk. Một VM Linux đóng vai cảm biến ở vùng giống DMZ: Nginx làm reverse proxy ghi access log dạng JSON có đủ User-Agent, URI, Referer và body, cùng Suricata với bộ luật ET Open. Một VM Windows là máy nạn nhân chạy ứng dụng web có lỗ hổng để thử nghiệm, Sysmon cấu hình theo sysmon-modular và Atomic Red Team. Cả hai VM đẩy log về Splunk qua Universal Forwarder. Em tách cảm biến khỏi máy nạn nhân để IDS không nằm ngay trên máy bị tấn công, và bỏ WSL/Docker vì lớp tích hợp đó hay sập.</p>
+    <p>Luồng xử lý: log từ ba bề mặt web, endpoint và mạng vào Splunk; luật phát hiện sinh alert; bộ lọc ML quyết định alert nào lên Agent; Agent mở ticket, làm giàu bằng kiểm kê tài sản và danh tiếng IP, truy hồi tri thức, suy luận, đi qua các lớp phòng vệ và đề xuất hành động. Câu hỏi nghiên cứu là Agent có phân tích đúng chuỗi tấn công, không bỏ lọt cảnh báo quan trọng, và không bị thao túng qua nội dung log hay qua kho tri thức hay không, và phải đánh đổi bao nhiêu chất lượng để có điều đó.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">21</span>Phần phát hiện của AegisSOC dùng phương pháp gì?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Em làm theo detection-as-code: luật là mã nguồn, để trong Git, có kiểm thử. Luật endpoint và web viết bằng Sigma, lấy từ SigmaHQ và ghi nguồn theo giấy phép DRL; em chọn khoảng 25 luật khớp kịch bản và tự viết thêm vài luật cho chỗ SigmaHQ chưa phủ. Sigma được chuyển sang SPL của Splunk bằng sigma-cli với pySigma; luật Windows dùng pipeline sysmon có sẵn, còn luật web cần một pipeline nhỏ ánh xạ tên trường sang log JSON của Nginx. Bề mặt mạng dùng chính chữ ký ET Open của Suricata, Splunk chỉ nhận alert từ eve.json.</p>
+    <p>Mỗi luật được kiểm hai chiều: phát lại log bình thường để xem có báo nhầm không, và chạy Atomic Red Team để xem có bắt đúng không. Mỗi luật gắn mã kỹ thuật ATT&amp;CK và được tô lên ATT&amp;CK Navigator, nên em báo được độ phủ theo chiến thuật thay vì nói chung chung là "phủ hết".</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">22</span>Em làm bộ lọc ML vừa chính xác vừa không bỏ lọt như thế nào?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Ngưỡng 0,5 mặc định ngầm giả định bỏ lọt một tấn công và báo nhầm một lần là thiệt hại ngang nhau, điều không đúng ở SOC. Em làm ba bước sau khi train, không phải train lại model. Thứ nhất là hiệu chuẩn xác suất: Platt scaling cho Logistic Regression và isotonic regression cho Random Forest, để điểm 0,9 thật sự tương ứng khoảng 90% là độc. Thứ hai là đặt ngưỡng theo chi phí t = C_FP / (C_FP + C_FN); với tỷ lệ chi phí bỏ lọt so với báo nhầm là 10 trên 1 thì t xấp xỉ 0,09. Thứ ba là một dải bất định quanh ngưỡng, alert rơi vào dải đó luôn được đẩy lên người.</p>
+    <p>Em so ba cấu hình trên cùng tập alert có nhãn: bộ lọc dựa trên luật của lõi cũ làm baseline, model với ngưỡng 0,5, và model đã hiệu chuẩn cộng ngưỡng theo chi phí. Em tái lập trên UNSW-NB15 để đối chiếu với bài báo gốc (arXiv 2601.04486), trong đó với tỷ lệ 10:1, số ca bỏ lọt của Logistic Regression giảm từ 23.693 xuống 2.286 và của Random Forest từ 27.400 xuống 77. Bài báo đó cũng cho thấy hiệu chuẩn mà đặt ngưỡng sai còn tệ hơn không làm gì.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">23</span>Em bảo vệ chính Agent bằng những lớp nào?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Rủi ro chính là prompt injection gián tiếp: nội dung trong log mang tính mệnh lệnh làm Agent đi chệch nhiệm vụ, tương ứng ASI01 trong OWASP Top 10 for Agentic Applications; cùng với lạm dụng công cụ (ASI02) và đầu độc bộ nhớ, ngữ cảnh (ASI06). Em xếp phòng thủ từ tất định tới xác suất thành năm lớp.</p>
+    <p>Lớp một theo Agents Rule of Two của Meta: một bước xử lý không được đồng thời đọc dữ liệu không tin cậy, chạm hệ thống nhạy cảm và thay đổi trạng thái bên ngoài; cụ thể node đọc log chỉ xuất nhãn có cấu trúc, còn hành động do bảng quyết định chọn và qua người duyệt. Lớp hai là spotlighting: đưa log và ngữ cảnh RAG ra khỏi system prompt, bọc từng trường bằng dấu phân cách sinh ngẫu nhiên mỗi lượt để model phân biệt dữ liệu với chỉ thị. Lớp ba là một bộ phân loại nhỏ như Prompt Guard hoặc DeBERTa quét các trường do bên ngoài kiểm soát trước khi vào prompt. Lớp bốn là giới hạn đường ra mạng và thu hẹp quyền của từng công cụ, xác thực các endpoint nội bộ. Lớp năm là kiểm tra nguồn gốc kho tri thức bằng manifest hash có ký. Em cũng ghi rõ những thứ không tính là phòng thủ: một câu dặn trong system prompt, chỉ lọc đầu ra, hay danh sách từ khoá cố định.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">24</span>Làm sao em chứng minh các lớp phòng thủ đó có tác dụng?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Em đo attack success rate, tức tỷ lệ lần Agent bị lái sai, khi bật và tắt từng lớp. Song song em đo cái giá của phòng thủ, tức tỷ lệ hoàn thành đúng nhiệm vụ bình thường giảm bao nhiêu khi bật đủ các lớp. Cặp số này quan trọng, vì một phòng thủ chặn hết mọi thứ mà làm Agent vô dụng thì không ai dùng; bài CaMeL chẳng hạn báo 77% nhiệm vụ hoàn thành khi có phòng thủ so với 84% khi không.</p>
+    <p>Em đo hai chế độ tấn công: tập tĩnh để so sánh giữa các lớp, và tấn công thích ứng, tức người tấn công biết trước cấu hình phòng thủ rồi điều chỉnh qua vài vòng. Lý do là nghiên cứu "The Attacker Moves Second" của các nhóm OpenAI, Anthropic và Google DeepMind đã thử 12 phòng thủ đã công bố và cho thấy tấn công thích ứng vượt được phần lớn với tỷ lệ trên 90%. Vì làm một mình, em không tự tách được người viết tấn công với người viết phòng thủ, nên em bù bằng bộ công khai AgentDojo làm tập tĩnh và nói rõ hạn chế này trong phần phương pháp.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">25</span>Em đánh giá Agent có quyết định đúng hay không bằng cách nào?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Em dựng một golden set gồm 30 đến 50 kịch bản có đáp án: ca phải cô lập, ca phải chặn IP, ca phải chuyển người, và ca báo động giả phải đóng. Chạy tự động và đo bốn chỉ số: tỷ lệ chọn đúng hành động; tỷ lệ leo thang, cần nằm trong một dải hợp lý vì quá cao thì Agent vô dụng còn quá thấp thì nguy hiểm; số lần lớp luật tất định phải sửa kết luận của LLM, để chứng minh lớp đó không phải trang trí; và MTTR, thời gian trung bình từ lúc có alert tới lúc xử lý xong, so với quy trình thủ công. Bộ này chạy lại mỗi khi đổi model, prompt hay corpus.</p>
+    <p class="note">Đây là phần đang làm, chưa có số.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">26</span>Hạn chế lớn nhất trong hệ của em hiện nay là gì?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Hạn chế lớn nhất là em chưa có bảng số đánh giá định lượng cho Agent, nên chưa nói được nó đúng bao nhiêu phần trăm; đó là lý do golden set là việc ưu tiên nhất. Thứ hai là dữ liệu: dataset ảnh cho nhánh thị giác và dữ liệu có nhãn cho bộ lọc ML vẫn đang thu. Thứ ba, một số quyết định ở lõi cũ vẫn dựa vào điểm mà LLM tự đánh giá, nên em đang chuyển các quyết định có hậu quả sang dựa vào tín hiệu tất định như dấu hiệu từ Extractor và luật Sigma khớp. Em nghĩ nói rõ những điểm này mạnh hơn là đưa ra một con số đẹp chưa kiểm chứng.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">27</span>Khó khăn lớn nhất em gặp và em giải quyết thế nào?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Có hai việc em nhớ nhất. Một là chọn layer cho Grad-CAM: em chọn bằng mắt và sai, rồi phải tự định nghĩa chỉ số đo, viết script benchmark, còn phát hiện thêm lỗi chọn nhầm vật thể ngay trong script đo, sửa xong chạy trên 99 ảnh mới chốt layer 22. Bài học là không tin cảm quan và dùng trung vị khi có ngoại lai.</p>
+    <p>Hai là một lỗi thiết kế không báo lỗi khi em rà kiến trúc gộp ticket: hai alert của cùng một vụ tới cách nhau khoảng 40 giây, nếu Agent xử lý ticket đầu một mạch thì alert sau không còn gì để gộp, hệ ra hai ticket rời mà không hề báo sai. Em tra cách Microsoft Sentinel và Splunk ITSI xử lý, thấy họ không chờ gom mà cho bằng chứng tới sau nhập vào sự cố đang mở, nên em chọn cách đó kèm giới hạn số lần đánh giá lại và hành động idempotent.</p>
+  </div></div>
+
+  <div class="ans"><h3><span class="qn">28</span>Hướng phát triển tiếp theo của em là gì?</h3><p class="hint">Bấm để xem câu trả lời</p><div class="body">
+    <p>Ngắn hạn là hoàn thành phần đo: golden set cho Agent, bảng ablation cho nhánh thị giác và hai bảng số của AegisSOC. Sau đó, trong đồ án tốt nghiệp tháng 11/2027, em lấy AegisSOC làm trục: bổ sung các phòng thủ nặng hơn như tách hai LLM theo kiểu CaMeL và giám sát thực thi kiểu MELON, nâng RAG lên hybrid search và Agentic RAG có giới hạn, thêm bước kiểm chứng giả thuyết của LLM trên đồ thị tài sản và đặc quyền, và đánh giá nghiêm bằng tấn công thích ứng. Về vận hành em muốn thêm tracing từng bước, theo dõi trôi dữ liệu và quản lý phiên bản cho model, prompt và corpus.</p>
+  </div></div>
+</section>
+
+<footer>
+  <h3>Nguồn</h3>
+  <ul class="src-list">
+    <li>Code và dữ liệu lõi cũ <code>KMA_AI_AGENT</code> (đọc 24/09/2026); tài liệu EdgeGuard-AI; kế hoạch AegisSOC v4</li>
+    <li>Llama 3.1 8B trên Ollama — <a href="https://ollama.com/library/llama3.1:8b" target="_blank" rel="noopener">ollama.com</a> · cấu hình model — <a href="https://huggingface.co/unsloth/Meta-Llama-3.1-8B-Instruct/blob/main/config.json" target="_blank" rel="noopener">config.json</a></li>
+    <li>Đánh giá lượng tử hoá trên Llama-3.1-8B-Instruct — <a href="https://arxiv.org/html/2601.14277v1" target="_blank" rel="noopener">arXiv 2601.14277</a></li>
+    <li>LLM chưa tự sửa suy luận được khi không có phản hồi ngoài — <a href="https://arxiv.org/abs/2310.01798" target="_blank" rel="noopener">arXiv 2310.01798</a></li>
+    <li>Yêu cầu VRAM khi fine-tune — <a href="https://unsloth.ai/docs/get-started/fine-tuning-for-beginners/unsloth-requirements" target="_blank" rel="noopener">Unsloth</a></li>
+    <li>Ngưỡng theo chi phí cho phân loại alert — arXiv 2601.04486 · The Attacker Moves Second — <a href="https://arxiv.org/abs/2510.09023" target="_blank" rel="noopener">arXiv 2510.09023</a> · Agents Rule of Two — <a href="https://simonwillison.net/2025/Nov/2/new-prompt-injection-papers/" target="_blank" rel="noopener">tổng hợp</a></li>
+  </ul>
+</footer>
+
+<script>
+(function(){
+  var btn=document.getElementById('quizBtn'), note=document.getElementById('quizNote'), root=document.documentElement;
+  function setQuiz(on){
+    root.classList.toggle('quiz',on);
+    btn.setAttribute('aria-pressed',on?'true':'false');
+    btn.textContent=on?'Hiện lại toàn bộ câu trả lời':'Ẩn câu trả lời để tự luyện';
+    note.textContent=on?'Bấm vào từng câu hỏi để xem câu trả lời.':'Đang hiện toàn bộ câu trả lời.';
+    if(!on){document.querySelectorAll('.ans.open').forEach(function(a){a.classList.remove('open');});}
+  }
+  btn.addEventListener('click',function(){setQuiz(!root.classList.contains('quiz'));});
+  document.querySelectorAll('.ans h3').forEach(function(h){
+    h.setAttribute('tabindex','0');
+    function t(){ if(root.classList.contains('quiz')) h.parentElement.classList.toggle('open'); }
+    h.addEventListener('click',t);
+    h.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){e.preventDefault();t();} });
+  });
+})();
+</script>
+
+</body></html>

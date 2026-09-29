@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AegisSOC — body của POST /ingest/alerts",
+  "description": "Sinh tự động từ api/alert_adapter.py (class Alert) — KHÔNG sửa tay. Ngoài schema, Agent còn kiểm: src_ip/dest_ip là IP hợp lệ hoặc chuỗi rỗng \"\"; timestamp là ISO 8601 (vd 2026-09-28T03:05:00Z); rule_level/surface không phân biệt hoa thường; attack_ids nhận cả mảng lẫn chuỗi \"T1190,T1059\".",
+  "$defs": {
+    "Alert": {
+      "additionalProperties": false,
+      "description": "Một alert do Splunk sinh ra, đã qua splunk_bridge.py (hoặc phát lại từ file JSON).",
+      "properties": {
+        "alert_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Alert Id",
+          "type": "string"
+        },
+        "rule_name": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Rule Name",
+          "type": "string"
+        },
+        "rule_level": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Rule Level",
+          "type": "string"
+        },
+        "attack_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Attack Ids",
+          "type": "array"
+        },
+        "surface": {
+          "enum": [
+            "web",
+            "endpoint",
+            "network"
+          ],
+          "title": "Surface",
+          "type": "string"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "src_ip": {
+          "default": "",
+          "title": "Src Ip",
+          "type": "string"
+        },
+        "dest_ip": {
+          "default": "",
+          "title": "Dest Ip",
+          "type": "string"
+        },
+        "dest_port": {
+          "anyOf": [
+            {
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dest Port"
+        },
+        "host": {
+          "default": "",
+          "title": "Host",
+          "type": "string"
+        },
+        "fields": {
+          "additionalProperties": true,
+          "title": "Fields",
+          "type": "object"
+        },
+        "summary": {
+          "default": "",
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "alert_id",
+        "rule_name",
+        "rule_level",
+        "surface",
+        "timestamp"
+      ],
+      "title": "Alert",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "alerts": {
+      "items": {
+        "$ref": "#/$defs/Alert"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Alerts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "alerts"
+  ],
+  "type": "object"
+}

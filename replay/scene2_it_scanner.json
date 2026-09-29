@@ -1,0 +1,72 @@
+{
+  "alerts": [
+    {
+      "alert_id": "scene2:portscan:001",
+      "rule_name": "Network Port Scan Detected",
+      "rule_level": "medium",
+      "attack_ids": ["T1046"],
+      "surface": "network",
+      "timestamp": "2026-09-27T02:00:00Z",
+      "src_ip": "192.168.56.30",
+      "dest_ip": "192.168.56.20",
+      "dest_port": 80,
+      "host": "sensor-net-01",
+      "summary": "Network Port Scan Detected | 192.168.56.30 -> 192.168.56.20:80 | host=sensor-net-01",
+      "fields": {
+        "proto": "TCP",
+        "app_proto": "http",
+        "flow": {
+          "pkts_toserver": 3,
+          "pkts_toclient": 3,
+          "bytes_toserver": 180,
+          "bytes_toclient": 240,
+          "start": "2026-09-27T02:00:00.010000+0000",
+          "end": "2026-09-27T02:00:00.045000+0000",
+          "src_ip": "192.168.56.30",
+          "dest_ip": "192.168.56.20",
+          "src_port": 45100,
+          "dest_port": 80
+        },
+        "signature": "ET SCAN Possible TCP Port Scan",
+        "signature_id": 2001219,
+        "category": "Attempted Information Leak",
+        "severity": 2,
+        "sensor": "suricata-lab"
+      }
+    },
+    {
+      "alert_id": "scene2:portscan:002",
+      "rule_name": "Network Port Scan Detected",
+      "rule_level": "medium",
+      "attack_ids": ["T1046"],
+      "surface": "network",
+      "timestamp": "2026-09-27T02:00:12Z",
+      "src_ip": "192.168.56.30",
+      "dest_ip": "192.168.56.20",
+      "dest_port": 443,
+      "host": "sensor-net-01",
+      "summary": "Network Port Scan Detected | 192.168.56.30 -> 192.168.56.20:443 | host=sensor-net-01",
+      "fields": {
+        "proto": "TCP",
+        "app_proto": "tls",
+        "flow": {
+          "pkts_toserver": 2,
+          "pkts_toclient": 1,
+          "bytes_toserver": 120,
+          "bytes_toclient": 0,
+          "start": "2026-09-27T02:00:12.220000+0000",
+          "end": "2026-09-27T02:00:12.251000+0000",
+          "src_ip": "192.168.56.30",
+          "dest_ip": "192.168.56.20",
+          "src_port": 45101,
+          "dest_port": 443
+        },
+        "signature": "ET SCAN Possible TCP Port Scan",
+        "signature_id": 2001219,
+        "category": "Attempted Information Leak",
+        "severity": 2,
+        "sensor": "suricata-lab"
+      }
+    }
+  ]
+}

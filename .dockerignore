@@ -1,0 +1,20 @@
+# Bỏ qua môi trường ảo (CÁI NÀY QUAN TRỌNG NHẤT, KHÔNG CÓ LÀ BUILD LỖI)
+venv/
+.env
+
+# Bỏ qua các file rác của Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Bỏ qua các thư mục/file test không cần thiết cho lúc chạy thật
+dummy_system/
+test_*.py
+test2.py
+make_rules.py
+sync_sigmahq.py
+ingest_rules.py
+
+# Bỏ qua file Git
+.git/
+.gitignore
