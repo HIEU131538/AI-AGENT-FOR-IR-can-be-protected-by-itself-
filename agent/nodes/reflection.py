@@ -23,6 +23,11 @@ def _get_windows_host_ip() -> str:
         pass
     return "127.0.0.1"
 
+def _mark_llm_error(state, detail: str) -> dict:
+    """B4.1: đánh dấu LLM lỗi. Không bao giờ xoá lỗi Analyzer đã ghi trước đó — chỉ nối thêm."""
+    prev = state.get("llm_error_detail") if state.get("llm_error") else ""
+    return {"llm_error": True, "llm_error_detail": f"{prev} | {detail}" if prev else detail}
+
 # langchain_ollama 0.1.x đọc OLLAMA_HOST (base_url param bị bỏ qua)
 if not os.getenv("OLLAMA_HOST"):
     os.environ["OLLAMA_HOST"] = f"http://{_get_windows_host_ip()}:11434"
@@ -108,7 +113,8 @@ def node_reflection(state: SOCAgentState):
 
     if not structured_llm:
         notes.append("Reflection: [CẢNH BÁO] Không có LLM. Bỏ qua kiểm toán chéo.")
-        return {"knowledge_conflict": False, "confidence_score": confidence, "investigation_notes": notes}
+        return {"knowledge_conflict": False, "confidence_score": confidence, "investigation_notes": notes,
+                **_mark_llm_error(state, "Reflection: không khởi tạo được LLM")}   # B4.1
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", REFLECTION_PROMPT),
@@ -165,4 +171,5 @@ def node_reflection(state: SOCAgentState):
     except Exception as e:
         print(f"[-] Lỗi khi Reflection suy luận: {e}")
         notes.append(f"Reflection: [LỖI CRITICAL] Quá trình kiểm toán thất bại -> {e}. Giữ nguyên phán quyết gốc.")
-        return {"investigation_notes": notes}
+        return {"investigation_notes": notes,
+                **_mark_llm_error(state, f"Reflection: {type(e).__name__}: {str(e)[:160]}")}   # B4.1

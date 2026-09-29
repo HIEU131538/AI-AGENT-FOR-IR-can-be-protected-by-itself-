@@ -2,6 +2,14 @@
 
 > Nhật ký thay đổi. Mục mới nhất ở trên cùng. Mỗi lần sửa code đều thêm một mục (xem `CLAUDE.md` mục 4).
 
+## [2026-09-29] B4.1 — báo lỗi LLM thay vì nuốt lỗi + kiểm trước khi đo (preflight)
+- Trạng thái: code xong, đã test (node thật 5/5 với Ollama tắt; API + preflight 4 tình huống; script phát lại hiện lỗi; hồi quy Ngày 2 21/21; Python 3.10). Chờ Hiếu sửa kết nối Ollama rồi đo lại baseline.
+- Lý do: baseline bản `off` lần 1 KHÔNG hợp lệ — Agent không gọi được Ollama, Analyzer bắt lỗi rồi âm thầm trả `low` + `IGNORE` trong ~0,3 s; bộ đo tính đó là phán quyết thật → ASR 1.000 giả. Thư mục `baseline_off/` lần đó phải bỏ (đổi tên `baseline_off_INVALID`).
+- File đã sửa: `agent/state.py` (thêm `llm_error`, `llm_error_detail`), `agent/nodes/analyzer.py` (3 nhánh trả cờ lỗi), `agent/nodes/reflection.py` (`_mark_llm_error`, chỉ nối thêm, không xoá lỗi của Analyzer), `api/main.py` (`_ollama_status()`, log khởi động `[LLM]`, `/health` có khối `llm`, results có `status: "llm_error"` + `detail`), `eval/common.py` (`preflight()`), `eval/eval_golden.py` (gọi preflight trước khi đo, cờ `--skip-preflight`), `eval/preflight.py` (mới, chạy tay)
+- Tóm tắt: LLM lỗi → alert trả `status: "llm_error"` kèm lý do thay vì `analyzed`; `extract_prediction` coi đó là ca lỗi → không được chấm đúng, bị đếm vào "Tỷ lệ JSON lỗi". Giá trị `low` lấp chỗ vẫn còn trong state nhưng không ai được dùng nó làm kết quả. Preflight kiểm 3 điều: đúng profile ở đúng cổng · `/health` báo gọi được Ollama · một alert thử chạy xong, không lỗi, tốn ≥ 1,5 s. `eval_golden` không đạt preflight → dừng, không ghi `table4.csv`.
+- Kiểm tra: Ollama tắt → `/health` `llm.reachable=false`, preflight thoát mã 1, `eval_golden` dừng không ghi bảng; alert xong quá nhanh → preflight báo lỗi; bình thường → preflight OK, đo chạy; `llm_error` được đếm vào tỷ lệ lỗi = 1.0; `replay_alerts.py` in `[-] lỗi phân tích: Analyzer: ConnectionError…` và đếm lỗi 3/3.
+- Việc tiếp theo: Hiếu sửa kết nối Ollama cho terminal chạy bản `off` → `python -m eval.preflight --profile off` → **MỐC ĐO: chạy lại baseline Bảng 2 (dòng 0) + Bảng 4 (cột off)**. Bạn làm eval thêm bước preflight vào `eval_injection.py` giống `eval_golden.py`.
+
 ## [2026-09-29] B4 (Ngày 3) — công tắc `DEFENSE_PROFILE` + kho RAG riêng cho từng profile
 - Trạng thái: code xong, đã test (công tắc 13/13; script sao kho 7 tình huống trên bản sao SQLite thật; 2 bản Agent chạy song song; hồi quy Ngày 2 21/21, Python 3.10). Chờ Hiếu tạo kho riêng + chạy thật.
 - File đã sửa: `core/profile.py` (mới), `tools/make_rag_stores.py` (mới), `rag_engine/retriever.py` (đường dẫn kho, dòng ~6–11), `api/main.py` (log khởi động, `/health`, `defense_profile` trong kết quả), `.gitignore` (`rag_stores/`)

@@ -166,10 +166,12 @@ def node_analyzer(state: SOCAgentState):
     if not structured_llm:
          notes.append("Analyzer: [CẢNH BÁO] Không có LLM.")
          return {
-             "mitre_mapping": [], "severity": "low", 
+             "mitre_mapping": [], "severity": "low",
              "confidence_score": 0.0, "is_suspicious": False,
              "knowledge_conflict": knowledge_conflict, "evidence_strength": 0.0, # Đã fix bug NameError ở đây
-             "raw_ai_verdict": {}, "investigation_notes": notes
+             "raw_ai_verdict": {}, "investigation_notes": notes,
+             # B4.1: báo lỗi LLM ra ngoài thay vì âm thầm trả "low" — bộ đo sẽ loại ca này
+             "llm_error": True, "llm_error_detail": "Analyzer: không khởi tạo được LLM",
          }
 
     prompt = ChatPromptTemplate.from_messages([
@@ -250,7 +252,8 @@ def node_analyzer(state: SOCAgentState):
             "knowledge_conflict": knowledge_conflict,
             "evidence_strength": result.evidence_strength,
             "raw_ai_verdict": raw_ai_verdict,
-            "investigation_notes": notes
+            "investigation_notes": notes,
+            "llm_error": False, "llm_error_detail": "",   # B4.1: LLM chạy bình thường
         }
 
     except Exception as e:
@@ -259,5 +262,7 @@ def node_analyzer(state: SOCAgentState):
         return {
             "mitre_mapping": [], "severity": "low", "confidence_score": 0.0,
             "is_suspicious": False, "knowledge_conflict": knowledge_conflict,"evidence_strength": 0.0,
-            "raw_ai_verdict": {"error": str(e)}, "investigation_notes": notes
+            "raw_ai_verdict": {"error": str(e)}, "investigation_notes": notes,
+            # B4.1: kết quả "low" ở trên chỉ là giá trị lấp chỗ — đánh dấu để không ai tính nó là phán quyết thật
+            "llm_error": True, "llm_error_detail": f"Analyzer: {type(e).__name__}: {str(e)[:160]}",
         }

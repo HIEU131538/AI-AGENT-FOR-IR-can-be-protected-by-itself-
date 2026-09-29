@@ -1,5 +1,6 @@
 import logging
 import os
+import requests  # B4.1: /health kiểm Ollama
 import secrets
 import time
 import threading
@@ -44,6 +45,28 @@ for _msg in defense_profile.startup_messages():
         logger.warning(_msg)
     else:
         logger.info(_msg)
+
+
+def _ollama_status(timeout: float = 2.0) -> Dict[str, Any]:
+    """B4.1: Agent có gọi được Ollama không — dùng đúng OLLAMA_HOST mà Analyzer/Reflection đang dùng
+    (hai node này đã tự đặt biến nếu thiếu, lúc import graph ở trên)."""
+    host = os.environ.get("OLLAMA_HOST", "")
+    url = host if "://" in host else f"http://{host}"
+    if host and ":" not in url.split("://", 1)[1]:
+        url += ":11434"
+    try:
+        r = requests.get(url.rstrip("/") + "/api/tags", timeout=timeout)
+        return {"host": host, "reachable": r.status_code == 200}
+    except Exception as e:  # không kết nối được, sai địa chỉ, proxy chặn...
+        return {"host": host, "reachable": False, "error": type(e).__name__}
+
+
+_llm_boot = _ollama_status()
+if _llm_boot["reachable"]:
+    logger.info(f"[LLM] Kết nối được Ollama tại {_llm_boot['host']}")
+else:
+    logger.warning(f"[LLM] CẢNH BÁO: KHÔNG kết nối được Ollama tại '{_llm_boot['host']}' "
+                   f"({_llm_boot.get('error', 'HTTP lỗi')}) — mọi alert sẽ trả status llm_error")
 
 
 # ==========================================
@@ -214,6 +237,9 @@ class AnalysisResponse(BaseModel):
     processing_time_ms: float
     # Ngày 2: kết quả làm giàu tất định (tài sản · tình báo IP · lịch sử) — rỗng nếu graph không có
     enrichment: Dict[str, Any] = Field(default_factory=dict)
+    # B4.1: True nếu LLM lỗi — khi đó severity/action ở trên chỉ là giá trị lấp chỗ
+    llm_error: bool = False
+    llm_error_detail: str = ""
 
 # ==========================================
 # STARTUP: KHỞI ĐỘNG BACKGROUND MONITOR
@@ -231,7 +257,8 @@ def start_chroma_monitor():
 @app.get("/health")
 def health():
     # B4: cho biết bản Agent này là profile nào, bật lớp nào, dùng kho RAG nào
-    return {"status": "healthy", **defense_profile.describe()}
+    # B4.1: thêm "llm" — Agent có gọi được Ollama không (kiểm lại mỗi lần gọi /health)
+    return {"status": "healthy", **defense_profile.describe(), "llm": _ollama_status()}
 
 @app.get("/stats")
 def stats():
@@ -500,6 +527,8 @@ def _analyze_log_impl(payload: LogInput):
             investigation_notes=_notes,
             processing_time_ms=process_time,
             enrichment=final_state.get("enrichment") or {},   # Ngày 2
+            llm_error=bool(final_state.get("llm_error")),                  # B4.1
+            llm_error_detail=final_state.get("llm_error_detail") or "",
         )
 
         # Lưu vào Live Feed buffer — MỌI log qua LLM đều được ghi (kể cả từ /batch)
@@ -731,7 +760,9 @@ def _process_one_alert(alert: Alert) -> Dict[str, Any]:
         res = analyze_log(LogInput(raw_log=raw_log, alert=alert.model_dump()))
         return {
             "alert_id": alert.alert_id,
-            "status": "analyzed",
+            # B4.1: LLM lỗi → "llm_error" (bộ đo loại ca này, không tính là phán quyết thật)
+            "status": "llm_error" if res.llm_error else "analyzed",
+            "detail": res.llm_error_detail if res.llm_error else None,
             "incident_id": res.incident_id,
             "severity": res.severity,
             "mitre_techniques": res.mitre_techniques,

@@ -16,7 +16,7 @@ matplotlib.use("Agg")                    # chạy headless, không cần display
 import matplotlib.pyplot as plt
 import numpy as np
 
-from eval.common import call_agent, extract_prediction, SEVERITIES
+from eval.common import call_agent, extract_prediction, preflight, SEVERITIES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("eval_golden")
@@ -137,6 +137,8 @@ def main():
     ap.add_argument("--scenarios", default="golden/scenarios.json")
     ap.add_argument("--out", default="results")
     ap.add_argument("--profiles", default="off,full")
+    ap.add_argument("--skip-preflight", action="store_true",
+                    help="bỏ bước kiểm trước khi đo (KHÔNG khuyến khích)")
     args = ap.parse_args()
 
     scenarios = load_scenarios(args.scenarios)
@@ -144,6 +146,17 @@ def main():
     out_dir = Path(args.out); out_dir.mkdir(parents=True, exist_ok=True)
 
     profiles = [p.strip() for p in args.profiles.split(",") if p.strip()]
+
+    # B4.1: kiểm trước khi đo — Agent đúng bản, gọi được Ollama, alert thử thật sự chạy LLM.
+    # Không đạt → dừng, tránh ghi ra bảng số trông hợp lệ nhưng LLM không hề chạy.
+    if not args.skip_preflight:
+        for p in profiles:
+            problems = preflight(p, sample_alerts=scenarios[0]["alerts"][:1])
+            if problems:
+                for msg in problems:
+                    log.error("[preflight %s] %s", p, msg)
+                raise SystemExit(f"Dừng: bản `{p}` chưa sẵn sàng để đo (xem lỗi ở trên).")
+            log.info("[preflight %s] OK", p)
     summary = {}
     for p in profiles:
         rows = run_profile(p, scenarios)

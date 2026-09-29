@@ -66,3 +66,11 @@ class SOCAgentState(TypedDict):
     # Do agent/nodes/enricher.py tra ra: tài sản, tình báo IP, lịch sử. Không dùng LLM,
     # không chứa dữ liệu do kẻ tấn công viết → Ngày 3 vào phần `trusted` của ticket.
     enrichment: dict
+
+    # ==========================================
+    # 9. LỖI GỌI LLM (AegisSOC — B4.1)
+    # ==========================================
+    # True nếu Analyzer hoặc Reflection không gọi được / không đọc được kết quả LLM.
+    # Khi đó severity "low" chỉ là giá trị lấp chỗ — API trả status "llm_error", bộ đo loại ca này.
+    llm_error: bool
+    llm_error_detail: str

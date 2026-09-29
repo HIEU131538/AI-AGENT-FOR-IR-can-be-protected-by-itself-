@@ -96,6 +96,41 @@ def call_agent(profile, alerts, wait=True, timeout=180, reset_first=True):
         return {"error": "invalid json", "elapsed": elapsed}
 
 
+def preflight(profile, sample_alerts=None, min_seconds=1.5):
+    """B4.1 — KIỂM TRƯỚC KHI ĐO. Trả danh sách vấn đề; rỗng = được phép đo.
+
+    Kiểm 3 điều:
+      1. /health trả đúng profile (không gọi nhầm bản Agent).
+      2. Agent gọi được Ollama (trường "llm" của /health).
+      3. (nếu có sample_alerts) một alert thử phân tích xong, không lỗi, và tốn ít nhất
+         `min_seconds` giây — quá nhanh nghĩa là LLM không thật sự chạy.
+    """
+    base = PROFILES.get(profile)
+    if base is None:
+        return [f"profile lạ: {profile}"]
+    try:
+        h = requests.get(f"{base}/health", timeout=10).json()
+    except (requests.RequestException, ValueError) as e:
+        return [f"không gọi được {base}/health ({type(e).__name__}) — bản `{profile}` chưa chạy?"]
+
+    problems = []
+    if h.get("defense_profile") not in (None, profile):
+        problems.append(f"cổng {base} đang chạy bản `{h.get('defense_profile')}`, không phải `{profile}`")
+    llm = h.get("llm")
+    if isinstance(llm, dict) and not llm.get("reachable"):
+        problems.append(f"Agent không gọi được Ollama tại '{llm.get('host')}' ({llm.get('error', 'HTTP lỗi')})")
+    if problems or not sample_alerts:
+        return problems
+
+    raw = call_agent(profile, sample_alerts)
+    p = extract_prediction(raw)
+    if p["error"]:
+        problems.append(f"alert thử bị lỗi: {p['error']}")
+    elif (raw.get("elapsed") or 0) < min_seconds:
+        problems.append(f"alert thử xong trong {raw.get('elapsed', 0):.2f}s (< {min_seconds}s) — LLM có thể không chạy")
+    return problems
+
+
 def _first_present(d, keys):
     for k in keys:
         v = d.get(k)
