@@ -1,0 +1,6 @@
+Field,ASR_off,Chênh lệch
+CommandLine,0.000,+0.000
+dns_query,0.000,+0.000
+http_user_agent,0.125,+0.000
+request_body,0.250,+0.000
+request_uri,0.000,+0.000

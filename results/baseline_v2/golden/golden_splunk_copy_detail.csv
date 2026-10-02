@@ -1,0 +1,62 @@
+id,name,profile,elapsed,error,gt_severity,gt_attack_ids,gt_action,gt_is_attack,pred_severity,pred_attack_ids,pred_action,pred_action_raw,pred_decision,pred_reasoning,pred_agent_mode,severity_ok,attack_ok,attack_overlap,attack_gt_size,attack_pred_size,action_ok,json_ok
+v2-001,SQLi rõ ràng từ IP ngoài,splunk_copy,0.0,,high,['T1190'],block,True,high,['T1190'],block,block,,,,True,True,1,1,1,True,True
+v2-002,SQLi UNION SELECT,splunk_copy,0.0,,high,['T1190'],block,True,high,['T1190'],block,block,,,,True,True,1,1,1,True,True
+v2-003,Path traversal /etc/passwd,splunk_copy,0.0,,medium,['T1190'],review,True,medium,['T1190'],review,review,,,,True,True,1,1,1,True,True
+v2-004,Webshell URL chứa whoami,splunk_copy,0.0,,high,['T1505.003'],block,True,high,['T1505.003'],block,block,,,,True,True,1,1,1,True,True
+v2-005,URI chứa C:/Windows path,splunk_copy,0.0,,high,['T1505.003'],block,True,high,['T1505.003'],block,block,,,,True,True,1,1,1,True,True
+v2-006,w3wp sinh cmd.exe /c whoami,splunk_copy,0.0,,high,"['T1505.003', 'T1190']",block,True,high,"['T1505.003', 'T1190']",block,block,,,,True,True,2,2,2,True,True
+v2-007,w3wp sinh powershell,splunk_copy,0.0,,high,"['T1505.003', 'T1190']",block,True,high,"['T1505.003', 'T1190']",block,block,,,,True,True,2,2,2,True,True
+v2-008,Webshell chạy net user recon,splunk_copy,0.0,,high,"['T1505.003', 'T1018', 'T1033', 'T1087']",block,True,high,"['T1505.003', 'T1018', 'T1033', 'T1087']",block,block,,,,True,True,4,4,4,True,True
+v2-009,Webshell dùng ntdsutil,splunk_copy,0.0,,high,"['T1505.003', 'T1018', 'T1033', 'T1087']",block,True,high,"['T1505.003', 'T1018', 'T1033', 'T1087']",block,block,,,,True,True,4,4,4,True,True
+v2-010,PowerShell -enc từ cmd,splunk_copy,0.0,,high,['T1059.001'],block,True,high,['T1059.001'],block,block,,,,True,True,1,1,1,True,True
+v2-011,PowerShell FromBase64String,splunk_copy,0.0,,high,"['T1027', 'T1140', 'T1059.001']",block,True,high,"['T1027', 'T1140', 'T1059.001']",block,block,,,,True,True,3,3,3,True,True
+v2-012,PowerShell IEX DownloadString,splunk_copy,0.0,,high,['T1059.001'],block,True,high,['T1059.001'],block,block,,,,True,True,1,1,1,True,True
+v2-013,PowerShell Invoke-WebRequest (medium),splunk_copy,0.0,,medium,['T1059.001'],review,True,medium,['T1059.001'],review,review,,,,True,True,1,1,1,True,True
+v2-014,certutil -urlcache tải file,splunk_copy,0.0,,medium,"['T1027', 'T1105']",review,True,medium,"['T1027', 'T1105']",review,review,,,,True,True,2,2,2,True,True
+v2-015,certutil -decode,splunk_copy,0.0,,high,['T1027'],block,True,high,['T1027'],block,block,,,,True,True,1,1,1,True,True
+v2-016,bitsadmin /transfer tải file,splunk_copy,0.0,,medium,"['T1197', 'T1036.003', 'T1105']",review,True,medium,"['T1197', 'T1036.003', 'T1105']",review,review,,,,True,True,3,3,3,True,True
+v2-017,mshta chạy HTA từ xa,splunk_copy,0.0,,high,['T1218.005'],block,True,high,['T1218.005'],block,block,,,,True,True,1,1,1,True,True
+v2-018,whoami /priv từ IIS APPPOOL,splunk_copy,0.0,,high,['T1033'],block,True,high,['T1033'],block,block,,,,True,True,1,1,1,True,True
+v2-022,schtasks chạy file trong Temp /sc once,splunk_copy,0.0,,high,['T1053.005'],block,True,high,['T1053.005'],block,block,,,,True,True,1,1,1,True,True
+v2-023,PsExec từ cmd tới host nội bộ,splunk_copy,0.0,,medium,"['T1569', 'T1021']",review,True,medium,"['T1569', 'T1021']",review,review,,,,True,True,2,2,2,True,True
+v2-024,DNS query chứa base64,splunk_copy,0.0,,medium,"['T1048.003', 'T1071.004']",review,True,medium,"['T1048.003', 'T1071.004']",review,review,,,,True,True,2,2,2,True,True
+v2-025,Suricata C2 beacon ra ngoài,splunk_copy,0.0,,high,['T1071'],block,True,high,['T1071'],block,block,,,,True,True,1,1,1,True,True
+v2-019,systeminfo từ IIS APPPOOL (nghi trinh sát),splunk_copy,0.0,,medium,['T1082'],review,True,low,['T1082'],no_action,no_action,,,,False,True,1,1,1,False,True
+v2-021,schtasks /sc onlogon — persistence thật,splunk_copy,0.0,,high,['T1053.005'],block,True,low,['T1053.005'],no_action,no_action,,,,False,True,1,1,1,False,True
+v2-026,Máy quét IT quét cổng (báo nhầm),splunk_copy,0.0,,low,"['T1046', 'T1595']",no_action,False,medium,"['T1046', 'T1595']",review,review,,,,False,True,2,2,2,False,True
+v2-027,LB monitor health check (báo nhầm),splunk_copy,0.0,,low,"['T1046', 'T1595']",no_action,False,medium,"['T1046', 'T1595']",review,review,,,,False,True,2,2,2,False,True
+v2-028,Admin chạy whoami /priv giờ hành chính,splunk_copy,0.0,,low,['T1033'],no_action,False,high,['T1033'],block,block,,,,False,True,1,1,1,False,True
+v2-029,Admin chạy systeminfo,splunk_copy,0.0,,low,['T1082'],no_action,False,low,['T1082'],no_action,no_action,,,,True,True,1,1,1,True,True
+v2-030,Admin chạy PsExec tới host quản trị,splunk_copy,0.0,,low,"['T1569', 'T1021']",no_action,False,medium,"['T1569', 'T1021']",review,review,,,,False,True,2,2,2,False,True
+v2-031,Admin tạo schtasks định kỳ,splunk_copy,0.0,,low,['T1053.005'],no_action,False,low,['T1053.005'],no_action,no_action,,,,True,True,1,1,1,True,True
+v2-032,Backup service tạo scheduled task ban đêm,splunk_copy,0.0,,low,['T1053.005'],no_action,False,low,['T1053.005'],no_action,no_action,,,,True,True,1,1,1,True,True
+v2-033,Admin reg add Run key,splunk_copy,0.0,,low,['T1547.001'],no_action,False,medium,['T1547.001'],review,review,,,,False,True,1,1,1,False,True
+v2-034,Admin chạy PowerShell Invoke-WebRequest,splunk_copy,0.0,,low,['T1059.001'],no_action,False,medium,['T1059.001'],review,review,,,,False,True,1,1,1,False,True
+v2-035,Backup chạy certutil download,splunk_copy,0.0,,low,"['T1027', 'T1105']",no_action,False,medium,"['T1027', 'T1105']",review,review,,,,False,True,2,2,2,False,True
+v2-036,Loop scan từ context quét định kỳ,splunk_copy,0.0,,low,"['T1059', 'T1018']",no_action,False,medium,"['T1059', 'T1018']",review,review,,,,False,True,2,2,2,False,True
+v2-037,Admin chạy whoami /priv 2 lần cách 30s,splunk_copy,0.0,,low,['T1033'],no_action,False,high,['T1033'],block,block,,,,False,True,1,1,1,False,True
+v2-038,Backup chạy B21 reg add Run key,splunk_copy,0.0,,low,['T1547.001'],no_action,False,medium,['T1547.001'],review,review,,,,False,True,1,1,1,False,True
+v2-039,LB monitor Suricata scan từ 192.168.56.5,splunk_copy,0.0,,low,"['T1046', 'T1595']",no_action,False,medium,"['T1046', 'T1595']",review,review,,,,False,True,2,2,2,False,True
+v2-040,IT scanner B02 path traversal do scanner nhầm,splunk_copy,0.0,,low,['T1190'],no_action,False,medium,['T1190'],review,review,,,,False,True,1,1,1,False,True
+v2-061,Backup định kỳ đẩy 60 MB ra external storage,splunk_copy,0.0,,low,"['T1041', 'T1048']",no_action,False,medium,"['T1041', 'T1048']",review,review,,,,False,True,2,2,2,False,True
+v2-062,Update phần mềm đẩy dữ liệu lớn (báo nhầm),splunk_copy,0.0,,low,"['T1041', 'T1048']",no_action,False,medium,"['T1041', 'T1048']",review,review,,,,False,True,2,2,2,False,True
+v2-041,5 whoami /priv liên tiếp trong 2 phút,splunk_copy,0.0,,critical,['T1033'],block,True,high,['T1033'],block,block,,,,False,True,1,1,1,True,True
+v2-042,3 certutil download liên tiếp,splunk_copy,0.0,,high,"['T1027', 'T1105']",block,True,medium,"['T1027', 'T1105']",review,review,,,,False,True,2,2,2,False,True
+v2-043,Chuỗi schtasks + PS encoded + Run key,splunk_copy,0.0,,critical,"['T1053.005', 'T1059.001', 'T1547.001']",block,True,medium,['T1547.001'],review,review,,,,False,True,1,3,1,False,True
+v2-044,Chuỗi systeminfo → whoami /priv → net user,splunk_copy,0.0,,critical,"['T1082', 'T1033', 'T1087']",block,True,high,"['T1505.003', 'T1018', 'T1033', 'T1087']",block,block,,,,False,True,2,3,4,True,True
+v2-045,3 alert DNS b64 trong 1 phút,splunk_copy,0.0,,high,"['T1048.003', 'T1071.004']",block,True,medium,"['T1048.003', 'T1071.004']",review,review,,,,False,True,2,2,2,False,True
+v2-046,2 alert B05 liên tiếp (webshell tải 2 shell),splunk_copy,0.0,,critical,"['T1505.003', 'T1190']",block,True,high,"['T1505.003', 'T1190']",block,block,,,,False,True,2,2,2,True,True
+v2-047,PowerShell encoded + download pattern,splunk_copy,0.0,,critical,['T1059.001'],block,True,high,['T1059.001'],block,block,,,,False,True,1,1,1,True,True
+v2-048,3 LOLBAS khác nhau trong 1 phút,splunk_copy,0.0,,critical,"['T1027', 'T1105', 'T1218.005', 'T1197']",block,True,medium,"['T1197', 'T1036.003', 'T1105']",review,review,,,,False,True,2,4,3,False,True
+v2-049,Path traversal + SQLi cùng IP,splunk_copy,0.0,,high,['T1190'],block,True,high,['T1190'],block,block,,,,True,True,1,1,1,True,True
+v2-050,5 DNS query Cobalt Strike liên tiếp,splunk_copy,0.0,,critical,['T1071.004'],block,True,critical,['T1071.004'],block,block,,,,True,True,1,1,1,True,True
+v2-051,Kill-chain đầy đủ: recon → SQLi → webshell → C2,splunk_copy,0.0,,critical,"['T1046', 'T1595', 'T1190', 'T1505.003', 'T1071']",block,True,high,['T1071'],block,block,,,,False,True,1,5,1,True,True
+v2-052,Webshell + discovery + persistence,splunk_copy,0.0,,critical,"['T1505.003', 'T1082', 'T1033', 'T1053.005']",block,True,low,['T1053.005'],no_action,no_action,,,,False,True,1,4,1,False,True
+v2-053,PowerShell stager chain,splunk_copy,0.0,,critical,"['T1059.001', 'T1027', 'T1140']",block,True,high,"['T1027', 'T1140', 'T1059.001']",block,block,,,,False,True,3,3,3,True,True
+v2-054,LOLBAS download chain,splunk_copy,0.0,,critical,"['T1027', 'T1105', 'T1218.005']",block,True,high,['T1218.005'],block,block,,,,False,True,1,3,1,True,True
+v2-055,SQLi + upload webshell + RCE,splunk_copy,0.0,,critical,"['T1190', 'T1505.003']",block,True,high,"['T1505.003', 'T1190']",block,block,,,,False,True,2,2,2,True,True
+v2-056,DNS tunneling nhiều bước,splunk_copy,0.0,,critical,"['T1071.004', 'T1048.003']",block,True,critical,['T1071.004'],block,block,,,,True,True,1,2,1,True,True
+v2-057,Recon + lateral,splunk_copy,0.0,,high,"['T1046', 'T1595', 'T1569', 'T1021']",block,True,medium,"['T1569', 'T1021']",review,review,,,,False,True,2,4,2,False,True
+v2-058,Chuỗi hoàn chỉnh 8 bước,splunk_copy,0.0,,critical,"['T1046', 'T1190', 'T1505.003', 'T1059.001', 'T1027', 'T1547.001', 'T1071']",block,True,high,['T1071'],block,block,,,,False,True,1,7,1,True,True
+v2-059,Webshell + credential dump + C2,splunk_copy,0.0,,critical,"['T1505.003', 'T1018', 'T1033', 'T1087', 'T1071']",block,True,high,['T1071'],block,block,,,,False,True,1,5,1,True,True
+v2-060,Ca lành tính hỗn hợp (baseline),splunk_copy,0.0,,low,[],no_action,False,medium,"['T1046', 'T1595']",review,review,,,,False,False,0,0,2,False,True
