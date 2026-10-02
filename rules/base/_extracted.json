@@ -1,0 +1,1047 @@
+[
+  {
+    "base_id": "B01",
+    "source": "sigmahq",
+    "group": "web",
+    "title": "SQL Injection Strings In URI",
+    "level": "high",
+    "attack_ids": [
+      "T1190"
+    ],
+    "logsource": "webserver",
+    "falsepositives": "Java scripts and CSS Files | User searches in search boxes of the respective website | Internal vulnerability scanners can cause some serious FPs when used, if you experience a lot of FPs due to this think of adding more filters such as \"User Agent\" strings and more response codes",
+    "lab_use": "SQLi trên web IIS",
+    "yaml_file": "rules\\base\\sigmahq\\web_sql_injection_in_access_logs.yml",
+    "detection": {
+      "selection": {
+        "cs-method": "GET"
+      },
+      "keywords": [
+        "@@version",
+        "%271%27%3D%271",
+        "=select ",
+        "=select(",
+        "=select%20",
+        "concat_ws(",
+        "CONCAT(0x",
+        "from mysql.innodb_table_stats",
+        "from%20mysql.innodb_table_stats",
+        "group_concat("
+      ],
+      "filter_main_status": {
+        "sc-status": "404"
+      },
+      "condition": "selection and keywords and not 1 of filter_main_*"
+    },
+    "author": "Saw Win Naung, Nasreddine Bencherchali (Nextron Systems), Thurein Oo (Yoma Bank)",
+    "description": "Detects potential SQL injection attempts via GET requests in access logs."
+  },
+  {
+    "base_id": "B02",
+    "source": "sigmahq",
+    "group": "web",
+    "title": "Path Traversal Exploitation Attempts",
+    "level": "medium",
+    "attack_ids": [
+      "T1190"
+    ],
+    "logsource": "webserver",
+    "falsepositives": "Expected to be continuously seen on systems exposed to the Internet | Internal vulnerability scanners",
+    "lab_use": "dò/khai thác path traversal",
+    "yaml_file": "rules\\base\\sigmahq\\web_path_traversal_exploitation_attempt.yml",
+    "detection": {
+      "selection": {
+        "cs-uri-query|contains": [
+          "../../../../../lib/password",
+          "../../../../windows/",
+          "../../../etc/",
+          "..%252f..%252f..%252fetc%252f",
+          "..%c0%af..%c0%af..%c0%afetc%c0%af",
+          "%252e%252e%252fetc%252f"
+        ]
+      },
+      "condition": "selection"
+    },
+    "author": "Subhash Popuri (@pbssubhash), Florian Roth (Nextron Systems), Thurein Oo, Nasreddine Bencherchali (Nextron Systems)",
+    "description": "Detects path traversal exploitation attempts"
+  },
+  {
+    "base_id": "B03",
+    "source": "sigmahq",
+    "group": "web",
+    "title": "Windows Webshell Strings",
+    "level": "high",
+    "attack_ids": [
+      "T1505.003"
+    ],
+    "logsource": "webserver",
+    "falsepositives": "Web sites like wikis with articles on os commands and pages that include the os commands in the URLs | User searches in search boxes of the respective website",
+    "lab_use": "gọi webshell qua URL",
+    "yaml_file": "rules\\base\\sigmahq\\web_win_webshells_in_access_logs.yml",
+    "detection": {
+      "selection_method": {
+        "cs-method": "GET"
+      },
+      "selection_keywords": [
+        "=whoami",
+        "=net%20user",
+        "=net+user",
+        "=net%2Buser",
+        "=cmd%20/c%",
+        "=cmd+/c+",
+        "=cmd%2B/c%",
+        "=cmd%20/r%",
+        "=cmd+/r+",
+        "=cmd%2B/r%"
+      ],
+      "condition": "all of selection_*"
+    },
+    "author": "Florian Roth (Nextron Systems), Nasreddine Bencherchali (Nextron Systems)",
+    "description": "Detects common commands used in Windows webshells"
+  },
+  {
+    "base_id": "B04",
+    "source": "sigmahq",
+    "group": "web",
+    "title": "Suspicious Windows Strings In URI",
+    "level": "high",
+    "attack_ids": [
+      "T1505.003"
+    ],
+    "logsource": "webserver",
+    "falsepositives": "Legitimate application and websites that use windows paths in their URL",
+    "lab_use": "chuỗi lệnh Windows trong URI",
+    "yaml_file": "rules\\base\\sigmahq\\web_susp_windows_path_uri.yml",
+    "detection": {
+      "selection": {
+        "cs-uri-query|contains": [
+          "=C:/Users",
+          "=C:/Program%20Files",
+          "=C:/Windows",
+          "=C%3A%5CUsers",
+          "=C%3A%5CProgram%20Files",
+          "=C%3A%5CWindows"
+        ]
+      },
+      "condition": "selection"
+    },
+    "author": "Nasreddine Bencherchali (Nextron Systems)",
+    "description": "Detects suspicious Windows strings in URI which could indicate possible exfiltration or webshell communication"
+  },
+  {
+    "base_id": "B05",
+    "source": "sigmahq",
+    "group": "webshell",
+    "title": "Suspicious Process By Web Server Process",
+    "level": "high",
+    "attack_ids": [
+      "T1505.003",
+      "T1190"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Particular web applications may spawn a shell process legitimately",
+    "lab_use": "w3wp.exe sinh shell (bước then chốt màn 1)",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_webshell_susp_process_spawned_from_webserver.yml",
+    "detection": {
+      "selection_webserver_image": {
+        "ParentImage|endswith": [
+          "\\caddy.exe",
+          "\\httpd.exe",
+          "\\nginx.exe",
+          "\\php-cgi.exe",
+          "\\php.exe",
+          "\\tomcat.exe",
+          "\\UMWorkerProcess.exe",
+          "\\w3wp.exe",
+          "\\ws_TomcatService.exe"
+        ]
+      },
+      "selection_webserver_characteristics_tomcat1": {
+        "ParentImage|endswith": [
+          "\\java.exe",
+          "\\javaw.exe"
+        ],
+        "ParentImage|contains": [
+          "-tomcat-",
+          "\\tomcat"
+        ]
+      },
+      "selection_webserver_characteristics_tomcat2": {
+        "ParentImage|endswith": [
+          "\\java.exe",
+          "\\javaw.exe"
+        ],
+        "ParentCommandLine|contains": [
+          "CATALINA_HOME",
+          "catalina.home",
+          "catalina.jar"
+        ]
+      },
+      "selection_anomaly_children": {
+        "Image|endswith": [
+          "\\arp.exe",
+          "\\at.exe",
+          "\\bash.exe",
+          "\\bitsadmin.exe",
+          "\\certutil.exe",
+          "\\cmd.exe",
+          "\\cscript.exe",
+          "\\dsget.exe",
+          "\\hostname.exe",
+          "\\nbtstat.exe"
+        ]
+      },
+      "filter_main_fp_1": {
+        "ParentImage|endswith": "\\java.exe",
+        "CommandLine|endswith": "Windows\\system32\\cmd.exe /c C:\\ManageEngine\\ADManager \"Plus\\ES\\bin\\elasticsearch.bat -Enode.name=RMP-NODE1 -pelasticsearch-pid.txt"
+      },
+      "filter_main_fp_2": {
+        "ParentImage|endswith": "\\java.exe",
+        "CommandLine|contains|all": [
+          "sc query",
+          "ADManager Plus"
+        ]
+      },
+      "condition": "1 of selection_webserver_* and selection_anomaly_children and not 1 of filter_main_*"
+    },
+    "author": "Thomas Patzke, Florian Roth (Nextron Systems), Zach Stanford @svch0st, Tim Shelton, Nasreddine Bencherchali (Nextron Systems)",
+    "description": "Detects potentially suspicious processes being spawned by a web server process which could be the result of a successfully placed web shell or exploitation\n"
+  },
+  {
+    "base_id": "B06",
+    "source": "sigmahq",
+    "group": "webshell",
+    "title": "Webshell Detection With Command Line Keywords",
+    "level": "high",
+    "attack_ids": [
+      "T1505.003",
+      "T1018",
+      "T1033",
+      "T1087"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Unknown",
+    "lab_use": "webshell chạy lệnh trinh sát",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_webshell_recon_commands_and_processes.yml",
+    "detection": {
+      "selection_webserver_image": {
+        "ParentImage|endswith": [
+          "\\w3wp.exe",
+          "\\php-cgi.exe",
+          "\\nginx.exe",
+          "\\httpd.exe",
+          "\\caddy.exe",
+          "\\ws_tomcatservice.exe"
+        ]
+      },
+      "selection_webserver_characteristics_tomcat1": {
+        "ParentImage|endswith": [
+          "\\java.exe",
+          "\\javaw.exe"
+        ],
+        "ParentImage|contains": [
+          "-tomcat-",
+          "\\tomcat"
+        ]
+      },
+      "selection_webserver_characteristics_tomcat2": {
+        "ParentImage|endswith": [
+          "\\java.exe",
+          "\\javaw.exe"
+        ],
+        "CommandLine|contains": [
+          "catalina.jar",
+          "CATALINA_HOME"
+        ]
+      },
+      "selection_susp_net_utility": {
+        "OriginalFileName": [
+          "net.exe",
+          "net1.exe"
+        ],
+        "CommandLine|contains": [
+          " user ",
+          " use ",
+          " group "
+        ]
+      },
+      "selection_susp_ping_utility": {
+        "OriginalFileName": "ping.exe",
+        "CommandLine|contains": " -n "
+      },
+      "selection_susp_change_dir": {
+        "CommandLine|contains": [
+          "&cd&echo",
+          "cd /d "
+        ]
+      },
+      "selection_susp_wmic_utility": {
+        "OriginalFileName": "wmic.exe",
+        "CommandLine|contains": " /node:"
+      },
+      "selection_susp_powershell_cli": {
+        "Image|endswith": [
+          "\\cmd.exe",
+          "\\powershell.exe",
+          "\\pwsh.exe"
+        ],
+        "CommandLine|contains": [
+          " -enc ",
+          " -EncodedCommand ",
+          " -w hidden ",
+          " -windowstyle hidden",
+          ".WebClient).Download"
+        ]
+      },
+      "selection_susp_misc_discovery_binaries": [
+        "{'Image|endswith': ['\\\\dsquery.exe', '\\\\find.exe', '\\\\findstr.exe', '\\\\ipconfig.exe', '\\\\netstat.exe', '\\\\nslookup.exe', '\\\\pathping.exe', '\\\\quser.exe', '\\\\schtasks.exe', '\\\\systeminfo.exe', '\\\\taskl",
+        "{'OriginalFileName': ['dsquery.exe', 'find.exe', 'findstr.exe', 'ipconfig.exe', 'netstat.exe', 'nslookup.exe', 'pathping.exe', 'quser.exe', 'schtasks.exe', 'sysinfo.exe', 'tasklist.exe', 'tracert.exe'"
+      ],
+      "selection_susp_misc_discovery_commands": {
+        "CommandLine|contains": [
+          " Test-NetConnection ",
+          "dir \\"
+        ]
+      },
+      "condition": "1 of selection_webserver_* and 1 of selection_susp_*"
+    },
+    "author": "Florian Roth (Nextron Systems), Jonhnathan Ribeiro, Anton Kutepov, oscd.community, Chad Hudson, Matt Anderson",
+    "description": "Detects certain command line parameters often used during reconnaissance activity via web shells"
+  },
+  {
+    "base_id": "B07",
+    "source": "sigmahq",
+    "group": "webshell",
+    "title": "Webshell Hacking Activity Patterns",
+    "level": "high",
+    "attack_ids": [
+      "T1505.003",
+      "T1018",
+      "T1033",
+      "T1087"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Unlikely",
+    "lab_use": "hoạt động hack qua webshell",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_webshell_hacking.yml",
+    "detection": {
+      "selection_webserver_image": {
+        "ParentImage|endswith": [
+          "\\caddy.exe",
+          "\\httpd.exe",
+          "\\nginx.exe",
+          "\\php-cgi.exe",
+          "\\w3wp.exe",
+          "\\ws_tomcatservice.exe"
+        ]
+      },
+      "selection_webserver_characteristics_tomcat1": {
+        "ParentImage|endswith": [
+          "\\java.exe",
+          "\\javaw.exe"
+        ],
+        "ParentImage|contains": [
+          "-tomcat-",
+          "\\tomcat"
+        ]
+      },
+      "selection_webserver_characteristics_tomcat2": {
+        "ParentImage|endswith": [
+          "\\java.exe",
+          "\\javaw.exe"
+        ],
+        "CommandLine|contains": [
+          "catalina.jar",
+          "CATALINA_HOME"
+        ]
+      },
+      "selection_child_1": {
+        "CommandLine|contains|all": [
+          "rundll32",
+          "comsvcs"
+        ]
+      },
+      "selection_child_2": {
+        "CommandLine|contains|all": [
+          " -hp",
+          " a ",
+          " -m"
+        ]
+      },
+      "selection_child_3": {
+        "CommandLine|contains|all": [
+          "net",
+          " user ",
+          " /add"
+        ]
+      },
+      "selection_child_4": {
+        "CommandLine|contains|all": [
+          "net",
+          " localgroup ",
+          " administrators ",
+          "/add"
+        ]
+      },
+      "selection_child_5": {
+        "Image|endswith": [
+          "\\ntdsutil.exe",
+          "\\ldifde.exe",
+          "\\adfind.exe",
+          "\\procdump.exe",
+          "\\Nanodump.exe",
+          "\\vssadmin.exe",
+          "\\fsutil.exe"
+        ]
+      },
+      "selection_child_6": {
+        "CommandLine|contains": [
+          " -decode ",
+          " -NoP ",
+          " -W Hidden ",
+          " /decode ",
+          " /ticket:",
+          " sekurlsa",
+          ".dmp full",
+          ".downloadfile(",
+          ".downloadstring(",
+          "FromBase64String"
+        ]
+      },
+      "condition": "1 of selection_webserver_* and 1 of selection_child_*"
+    },
+    "author": "Florian Roth (Nextron Systems)",
+    "description": "Detects certain parent child patterns found in cases in which a web shell is used to perform certain credential dumping or exfiltration activities on a compromised system\n"
+  },
+  {
+    "base_id": "B08",
+    "source": "sigmahq",
+    "group": "powershell",
+    "title": "Suspicious Encoded PowerShell Command Line",
+    "level": "high",
+    "attack_ids": [
+      "T1059.001"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "",
+    "lab_use": "PowerShell -enc",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_powershell_base64_encoded_cmd.yml",
+    "detection": {
+      "selection_img": [
+        "{'Image|endswith': ['\\\\powershell.exe', '\\\\pwsh.exe']}",
+        "{'OriginalFileName': ['PowerShell.EXE', 'pwsh.dll']}"
+      ],
+      "selection_cli_enc": {
+        "CommandLine|contains": " -e"
+      },
+      "selection_cli_content": {
+        "CommandLine|contains": [
+          " JAB",
+          " SUVYI",
+          " SQBFAFgA",
+          " aQBlAHgA",
+          " aWV4I",
+          " IAA",
+          " IAB",
+          " UwB",
+          " cwB"
+        ]
+      },
+      "selection_standalone": {
+        "CommandLine|contains": [
+          ".exe -ENCOD ",
+          " BA^J e-"
+        ]
+      },
+      "filter_optional_remote_signed": {
+        "CommandLine|contains": " -ExecutionPolicy remotesigned "
+      },
+      "condition": "selection_img and (all of selection_cli_* or selection_standalone) and not 1 of filter_optional_*"
+    },
+    "author": "Florian Roth (Nextron Systems), Markus Neis, Jonhnathan Ribeiro, Daniil Yugoslavskiy, Anton Kutepov, oscd.community",
+    "description": "Detects suspicious powershell process starts with base64 encoded commands (e.g. Emotet)"
+  },
+  {
+    "base_id": "B09",
+    "source": "sigmahq",
+    "group": "powershell",
+    "title": "Base64 Encoded PowerShell Command Detected",
+    "level": "high",
+    "attack_ids": [
+      "T1027",
+      "T1140",
+      "T1059.001"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Administrative script libraries",
+    "lab_use": "FromBase64String — FP: thư viện script quản trị",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_powershell_frombase64string.yml",
+    "detection": {
+      "selection": {
+        "CommandLine|contains": "::FromBase64String("
+      },
+      "condition": "selection"
+    },
+    "author": "Florian Roth (Nextron Systems)",
+    "description": "Detects usage of the \"FromBase64String\" function in the commandline which is used to decode a base64 encoded string"
+  },
+  {
+    "base_id": "B10",
+    "source": "sigmahq",
+    "group": "powershell",
+    "title": "Suspicious PowerShell Download and Execute Pattern",
+    "level": "high",
+    "attack_ids": [
+      "T1059.001"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Software installers that pull packages from remote systems and execute them",
+    "lab_use": "tải + chạy (IEX DownloadString)",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_powershell_susp_download_patterns.yml",
+    "detection": {
+      "selection": {
+        "CommandLine|contains": [
+          "IEX ((New-Object Net.WebClient).DownloadString",
+          "IEX (New-Object Net.WebClient).DownloadString",
+          "IEX((New-Object Net.WebClient).DownloadString",
+          "IEX(New-Object Net.WebClient).DownloadString",
+          " -command (New-Object System.Net.WebClient).DownloadFile(",
+          " -c (New-Object System.Net.WebClient).DownloadFile("
+        ]
+      },
+      "condition": "selection"
+    },
+    "author": "Florian Roth (Nextron Systems)",
+    "description": "Detects suspicious PowerShell download patterns that are often used in malicious scripts, stagers or downloaders (make sure that your backend applies the strings case-insensitive)"
+  },
+  {
+    "base_id": "B11",
+    "source": "sigmahq",
+    "group": "powershell",
+    "title": "Usage Of Web Request Commands And Cmdlets",
+    "level": "medium",
+    "attack_ids": [
+      "T1059.001"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Use of Get-Command and Get-Help modules to reference Invoke-WebRequest and Start-BitsTransfer.",
+    "lab_use": "Invoke-WebRequest/curl/wget — mức medium",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_susp_web_request_cmd_and_cmdlets.yml",
+    "detection": {
+      "selection": {
+        "CommandLine|contains": [
+          "[System.Net.WebRequest]::create",
+          "curl ",
+          "Invoke-RestMethod",
+          "Invoke-WebRequest",
+          " irm ",
+          "iwr ",
+          "Resume-BitsTransfer",
+          "Start-BitsTransfer",
+          "wget ",
+          "WinHttp.WinHttpRequest"
+        ]
+      },
+      "condition": "selection"
+    },
+    "author": "James Pemberton / @4A616D6573, Endgame, JHasenbusch, oscd.community, Austin Songer @austinsonger",
+    "description": "Detects the use of various web request commands with commandline tools and Windows PowerShell cmdlets (including aliases) via CommandLine"
+  },
+  {
+    "base_id": "B12",
+    "source": "sigmahq",
+    "group": "lolbas",
+    "title": "Suspicious Download Via Certutil.EXE",
+    "level": "medium",
+    "attack_ids": [
+      "T1027",
+      "T1105"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Unknown",
+    "lab_use": "certutil tải file — mức medium",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_certutil_download.yml",
+    "detection": {
+      "selection_img": [
+        "{'Image|endswith': '\\\\certutil.exe'}",
+        "{'OriginalFileName': 'CertUtil.exe'}"
+      ],
+      "selection_flags": {
+        "CommandLine|contains": [
+          "urlcache ",
+          "verifyctl ",
+          "URL "
+        ]
+      },
+      "selection_http": {
+        "CommandLine|contains": "http"
+      },
+      "condition": "all of selection_*"
+    },
+    "author": "Florian Roth (Nextron Systems), Jonhnathan Ribeiro, oscd.community, Nasreddine Bencherchali (Nextron Systems)",
+    "description": "Detects the execution of certutil with certain flags that allow the utility to download files."
+  },
+  {
+    "base_id": "B13",
+    "source": "sigmahq",
+    "group": "lolbas",
+    "title": "File Decoded From Base64/Hex Via Certutil.EXE",
+    "level": "high",
+    "attack_ids": [
+      "T1027"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Unknown",
+    "lab_use": "certutil -decode",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_certutil_decode.yml",
+    "detection": {
+      "selection_img": [
+        "{'Image|endswith': '\\\\certutil.exe'}",
+        "{'OriginalFileName': 'CertUtil.exe'}"
+      ],
+      "selection_cli": {
+        "CommandLine|contains|windash": [
+          "-decode ",
+          "-decodehex "
+        ]
+      },
+      "condition": "all of selection_*"
+    },
+    "author": "Florian Roth (Nextron Systems), Jonhnathan Ribeiro, oscd.community",
+    "description": "Detects the execution of certutil with either the \"decode\" or \"decodehex\" flags to decode base64 or hex encoded files. This can be abused by attackers to decode an encoded payload before execution"
+  },
+  {
+    "base_id": "B14",
+    "source": "sigmahq",
+    "group": "lolbas",
+    "title": "File Download Via Bitsadmin",
+    "level": "medium",
+    "attack_ids": [
+      "T1197",
+      "T1036.003",
+      "T1105"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Some legitimate apps use this, but limited.",
+    "lab_use": "bitsadmin tải file — mức medium",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_bitsadmin_download.yml",
+    "detection": {
+      "selection_img": [
+        "{'Image|endswith': '\\\\bitsadmin.exe'}",
+        "{'OriginalFileName': 'bitsadmin.exe'}"
+      ],
+      "selection_cmd": {
+        "CommandLine|contains": " /transfer "
+      },
+      "selection_cli_1": {
+        "CommandLine|contains": [
+          " /create ",
+          " /addfile "
+        ]
+      },
+      "selection_cli_2": {
+        "CommandLine|contains": "http"
+      },
+      "condition": "selection_img and (selection_cmd or all of selection_cli_*)"
+    },
+    "author": "Michael Haag, FPT.EagleEye",
+    "description": "Detects usage of bitsadmin downloading a file"
+  },
+  {
+    "base_id": "B15",
+    "source": "sigmahq",
+    "group": "lolbas",
+    "title": "Remotely Hosted HTA File Executed Via Mshta.EXE",
+    "level": "high",
+    "attack_ids": [
+      "T1218.005"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Unknown",
+    "lab_use": "mshta chạy HTA từ xa",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_mshta_http.yml",
+    "detection": {
+      "selection_img": [
+        "{'Image|endswith': '\\\\mshta.exe'}",
+        "{'OriginalFileName': 'MSHTA.EXE'}"
+      ],
+      "selection_cli": {
+        "CommandLine|contains": [
+          "http://",
+          "https://",
+          "ftp://"
+        ]
+      },
+      "condition": "all of selection_*"
+    },
+    "author": "Nasreddine Bencherchali (Nextron Systems)",
+    "description": "Detects execution of the \"mshta\" utility with an argument containing the \"http\" keyword, which could indicate that an attacker is executing a remotely hosted malicious hta file"
+  },
+  {
+    "base_id": "B16",
+    "source": "sigmahq",
+    "group": "discovery",
+    "title": "Security Privileges Enumeration Via Whoami.EXE",
+    "level": "high",
+    "attack_ids": [
+      "T1033"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Unknown",
+    "lab_use": "whoami /priv",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_whoami_priv_discovery.yml",
+    "detection": {
+      "selection_img": [
+        "{'Image|endswith': '\\\\whoami.exe'}",
+        "{'OriginalFileName': 'whoami.exe'}"
+      ],
+      "selection_cli": {
+        "CommandLine|contains": [
+          " /priv",
+          " -priv"
+        ]
+      },
+      "condition": "all of selection_*"
+    },
+    "author": "Florian Roth (Nextron Systems)",
+    "description": "Detects a whoami.exe executed with the /priv command line flag instructing the tool to show all current user privileges. This is often used after a privilege escalation attempt."
+  },
+  {
+    "base_id": "B17",
+    "source": "sigmahq",
+    "group": "discovery",
+    "title": "Suspicious Execution of Systeminfo",
+    "level": "low",
+    "attack_ids": [
+      "T1082"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Unknown",
+    "lab_use": "systeminfo — mức low",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_systeminfo_execution.yml",
+    "detection": {
+      "selection": [
+        "{'Image|endswith': '\\\\systeminfo.exe'}",
+        "{'OriginalFileName': 'sysinfo.exe'}"
+      ],
+      "condition": "selection"
+    },
+    "author": "frack113",
+    "description": "Detects usage of the \"systeminfo\" command to retrieve information"
+  },
+  {
+    "base_id": "B18",
+    "source": "sigmahq",
+    "group": "discovery",
+    "title": "Suspicious Scan Loop Network",
+    "level": "medium",
+    "attack_ids": [
+      "T1059",
+      "T1018"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Legitimate script",
+    "lab_use": "vòng lặp quét mạng từ máy chủ",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_susp_network_scan_loop.yml",
+    "detection": {
+      "selection_loop": {
+        "CommandLine|contains": [
+          "for ",
+          "foreach "
+        ]
+      },
+      "selection_tools": {
+        "CommandLine|contains": [
+          "nslookup",
+          "ping"
+        ]
+      },
+      "condition": "all of selection_*"
+    },
+    "author": "frack113",
+    "description": "Adversaries may attempt to get a listing of other systems by IP address, hostname, or other logical identifier on a network that may be used for Lateral Movement from the current system"
+  },
+  {
+    "base_id": "B19",
+    "source": "sigmahq",
+    "group": "persistence",
+    "title": "Scheduled Task Creation Via Schtasks.EXE",
+    "level": "low",
+    "attack_ids": [
+      "T1053.005"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Administrative activity | Software installation",
+    "lab_use": "schtasks /create — mức low, FP: quản trị",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_schtasks_creation.yml",
+    "detection": {
+      "selection": {
+        "Image|endswith": "\\schtasks.exe",
+        "CommandLine|contains": " /create "
+      },
+      "filter_main_system_user": {
+        "User|contains": [
+          "AUTHORI",
+          "AUTORI"
+        ]
+      },
+      "filter_optional_msoffice": {
+        "ParentImage": [
+          "C:\\Program Files\\Microsoft Office\\root\\integration\\integrator.exe",
+          "C:\\Program Files (x86)\\Microsoft Office\\root\\integration\\integrator.exe"
+        ],
+        "Image": [
+          "C:\\Windows\\System32\\schtasks.exe",
+          "C:\\Windows\\SysWOW64\\schtasks.exe"
+        ],
+        "CommandLine|contains": "Microsoft\\Office\\Office Performance Monitor"
+      },
+      "condition": "selection and not 1 of filter_main_* and not 1 of filter_optional_*"
+    },
+    "author": "Florian Roth (Nextron Systems)",
+    "description": "Detects the creation of scheduled tasks by user accounts via the \"schtasks\" utility."
+  },
+  {
+    "base_id": "B20",
+    "source": "sigmahq",
+    "group": "persistence",
+    "title": "Suspicious Scheduled Task Creation Involving Temp Folder",
+    "level": "high",
+    "attack_ids": [
+      "T1053.005"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Administrative activity | Software installation",
+    "lab_use": "tác vụ chạy file trong Temp — high",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_schtasks_creation_temp_folder.yml",
+    "detection": {
+      "selection": {
+        "Image|endswith": "\\schtasks.exe",
+        "CommandLine|contains|all": [
+          " /create ",
+          " /sc once ",
+          "\\Temp\\"
+        ]
+      },
+      "condition": "selection"
+    },
+    "author": "Florian Roth (Nextron Systems)",
+    "description": "Detects the creation of scheduled tasks that involves a temporary folder and runs only once"
+  },
+  {
+    "base_id": "B21",
+    "source": "sigmahq",
+    "group": "persistence",
+    "title": "Potential Persistence Attempt Via Run Keys Using Reg.EXE",
+    "level": "medium",
+    "attack_ids": [
+      "T1547.001"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Legitimate software automatically (mostly, during installation) sets up autorun keys for legitimate reasons. | Legitimate administrator sets up autorun keys for legitimate reasons. | Discord",
+    "lab_use": "reg add ...\\Run — medium",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_reg_add_run_key.yml",
+    "detection": {
+      "selection": {
+        "Image|endswith": "\\reg.exe",
+        "CommandLine|contains|all": [
+          "reg",
+          " add "
+        ],
+        "CommandLine|contains": [
+          "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+          "\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run",
+          "\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run"
+        ]
+      },
+      "condition": "selection"
+    },
+    "author": "Florian Roth (Nextron Systems), Swachchhanda Shrawan Poudel (Nextron Systems)",
+    "description": "Detects suspicious command line reg.exe tool adding key to RUN key in Registry"
+  },
+  {
+    "base_id": "B22",
+    "source": "sigmahq",
+    "group": "lateral",
+    "title": "Psexec Execution",
+    "level": "medium",
+    "attack_ids": [
+      "T1569",
+      "T1021"
+    ],
+    "logsource": "windows/process_creation",
+    "falsepositives": "Administrative scripts.",
+    "lab_use": "PsExec — medium, FP: script quản trị",
+    "yaml_file": "rules\\base\\sigmahq\\proc_creation_win_sysinternals_psexec_execution.yml",
+    "detection": {
+      "selection": [
+        "{'Image|endswith': '\\\\psexec.exe'}",
+        "{'OriginalFileName': 'psexec.c'}"
+      ],
+      "condition": "selection"
+    },
+    "author": "omkar72",
+    "description": "Detects user accept agreement execution in psexec commandline"
+  },
+  {
+    "base_id": "B23",
+    "source": "sigmahq",
+    "group": "dns",
+    "title": "Suspicious DNS Query with B64 Encoded String",
+    "level": "medium",
+    "attack_ids": [
+      "T1048.003",
+      "T1071.004"
+    ],
+    "logsource": "dns",
+    "falsepositives": "Unknown",
+    "lab_use": "truy vấn DNS chứa base64 (tunneling)",
+    "yaml_file": "rules\\base\\sigmahq\\net_dns_susp_b64_queries.yml",
+    "detection": {
+      "selection": {
+        "query|contains": "==."
+      },
+      "condition": "selection"
+    },
+    "author": "Florian Roth (Nextron Systems)",
+    "description": "Detects suspicious DNS queries using base64 encoding"
+  },
+  {
+    "base_id": "B24",
+    "source": "sigmahq",
+    "group": "dns",
+    "title": "DNS TXT Answer with Possible Execution Strings",
+    "level": "high",
+    "attack_ids": [
+      "T1071.004"
+    ],
+    "logsource": "dns",
+    "falsepositives": "Unknown",
+    "lab_use": "bản ghi TXT chứa lệnh",
+    "yaml_file": "rules\\base\\sigmahq\\net_dns_susp_txt_exec_strings.yml",
+    "detection": {
+      "selection": {
+        "record_type": "TXT",
+        "answer|contains": [
+          "IEX",
+          "Invoke-Expression",
+          "cmd.exe"
+        ]
+      },
+      "condition": "selection"
+    },
+    "author": "Markus Neis",
+    "description": "Detects strings used in command execution in DNS TXT Answer"
+  },
+  {
+    "base_id": "B25",
+    "source": "sigmahq",
+    "group": "dns",
+    "title": "Cobalt Strike DNS Beaconing",
+    "level": "critical",
+    "attack_ids": [
+      "T1071.004"
+    ],
+    "logsource": "dns",
+    "falsepositives": "Unknown",
+    "lab_use": "beacon DNS kiểu Cobalt Strike",
+    "yaml_file": "rules\\base\\sigmahq\\net_dns_mal_cobaltstrike.yml",
+    "detection": {
+      "selection1": {
+        "query|startswith": [
+          "aaa.stage.",
+          "post.1"
+        ]
+      },
+      "selection2": {
+        "query|contains": ".stage.123456."
+      },
+      "condition": "1 of selection*"
+    },
+    "author": "Florian Roth (Nextron Systems)",
+    "description": "Detects suspicious DNS queries known from Cobalt Strike beacons"
+  },
+  {
+    "base_id": "C01",
+    "source": "custom",
+    "group": "network",
+    "title": "AegisSOC - Large Outbound Transfer From Web Server",
+    "level": "medium",
+    "attack_ids": [
+      "T1041",
+      "T1048"
+    ],
+    "logsource": "suricata/flow",
+    "falsepositives": "Backups or software updates pushed to external storage",
+    "lab_use": "tuồn dữ liệu — mức medium, FP: sao lưu",
+    "yaml_file": "rules\\base\\custom\\aegis_large_outbound_from_server.yml",
+    "detection": {
+      "selection": {
+        "event_type": "flow",
+        "src_ip": "192.168.56.20",
+        "flow.bytes_toserver|gt": "50000000"
+      },
+      "filter_private": {
+        "dest_ip|cidr": [
+          "10.0.0.0/8",
+          "172.16.0.0/12",
+          "192.168.0.0/16"
+        ]
+      },
+      "condition": "selection and not filter_private"
+    },
+    "author": "AegisSOC team",
+    "description": "A single flow from the lab web server to a non-private address sent more than 50 MB.\nWritten for the AegisSOC lab (Suricata flow events).\n"
+  },
+  {
+    "base_id": "C02",
+    "source": "custom",
+    "group": "network",
+    "title": "AegisSOC - Suricata Malware or C2 Communication Alert",
+    "level": "high",
+    "attack_ids": [
+      "T1071"
+    ],
+    "logsource": "suricata/ids",
+    "falsepositives": "Signatures that match on generic user agents or domains also used by legitimate software",
+    "lab_use": "beacon/C2 ra ngoài",
+    "yaml_file": "rules\\base\\custom\\aegis_suricata_c2_malware.yml",
+    "detection": {
+      "selection": {
+        "event_type": "alert",
+        "alert.signature|startswith": [
+          "ET MALWARE",
+          "ET TROJAN",
+          "ET CNC"
+        ]
+      },
+      "condition": "selection"
+    },
+    "author": "AegisSOC team",
+    "description": "Suricata raised an ET MALWARE, ET TROJAN or ET CNC signature for traffic between a lab host and an\nexternal address. Written for the AegisSOC lab because SigmaHQ has no rules for Suricata alerts.\n"
+  },
+  {
+    "base_id": "C03",
+    "source": "custom",
+    "group": "network",
+    "title": "AegisSOC - Suricata Network Scan Alert",
+    "level": "medium",
+    "attack_ids": [
+      "T1046",
+      "T1595"
+    ],
+    "logsource": "suricata/ids",
+    "falsepositives": "Scheduled vulnerability scanners and monitoring systems owned by IT (see assets/inventory.yaml)",
+    "lab_use": "quét cổng/dịch vụ — FP: máy quét IT, hệ giám sát",
+    "yaml_file": "rules\\base\\custom\\aegis_suricata_network_scan.yml",
+    "detection": {
+      "selection": {
+        "event_type": "alert",
+        "alert.signature|startswith": "ET SCAN"
+      },
+      "condition": "selection"
+    },
+    "author": "AegisSOC team",
+    "description": "Suricata raised an ET SCAN signature (port or service scan) against a lab host.\nWritten for the AegisSOC lab because SigmaHQ has no rules for Suricata alerts.\n"
+  }
+]

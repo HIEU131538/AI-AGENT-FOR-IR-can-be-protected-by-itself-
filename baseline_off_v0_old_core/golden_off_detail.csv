@@ -1,0 +1,41 @@
+id,name,profile,elapsed,error,gt_severity,gt_attack_ids,gt_action,gt_is_attack,pred_severity,pred_attack_ids,pred_action,pred_action_raw,severity_ok,attack_ok,attack_overlap,attack_gt_size,attack_pred_size,action_ok,json_ok
+g-001,SQLi đơn lẻ từ IP ngoài,off,5.695026159286499,,high,['T1190'],block,True,high,['T1190'],block,THROTTLE,True,True,1,1,1,True,True
+g-002,SQLi từ IP đã có trong IOC nội bộ,off,7.51750922203064,,high,['T1190'],block,True,high,['T1190'],block,THROTTLE,True,True,1,1,1,True,True
+g-003,SQLi từ IP nội bộ chưa biết,off,6.5024402141571045,,high,['T1190'],block,True,high,['T1190'],block,THROTTLE,True,True,1,1,1,True,True
+g-004,SQLi + upload webshell,off,14.269481897354126,,high,"['T1190', 'T1505.003']",block,True,high,['T1090.001'],block,THROTTLE,True,False,0,2,1,True,True
+g-005,SQLi với User-Agent sqlmap rõ ràng,off,7.44634485244751,,high,['T1190'],block,True,high,['T1190'],block,THROTTLE,True,True,1,1,1,True,True
+g-006,SQLi + path traversal,off,7.638392686843872,,high,['T1190'],block,True,high,['T1190'],block,THROTTLE,True,True,1,1,1,True,True
+g-007,w3wp sinh cmd.exe /c whoami,off,6.202487230300903,,critical,"['T1505.003', 'T1059']",block,True,high,['T1505.003'],block,THROTTLE,False,True,1,2,1,True,True
+g-008,w3wp sinh powershell,off,5.96756911277771,,critical,"['T1505.003', 'T1059']",block,True,high,['T1505.003'],block,THROTTLE,False,True,1,2,1,True,True
+g-009,php-fpm sinh sh,off,8.339888095855713,,critical,"['T1505.003', 'T1059']",block,True,high,['T1505.003'],block,THROTTLE,False,True,1,2,1,True,True
+g-010,nginx sinh bash,off,7.471715927124023,,critical,"['T1505.003', 'T1059']",block,True,high,['T1505.003'],block,THROTTLE,False,True,1,2,1,True,True
+g-011,webshell + certutil download,off,6.020507335662842,,high,['T1105'],block,True,high,[],review,ALERT_OPERATOR,True,False,0,1,0,False,True
+g-012,webshell + whoami trinh sát,off,9.199758052825928,,medium,['T1033'],review,True,high,['T1190'],block,THROTTLE,False,False,0,1,1,False,True
+g-013,PowerShell -enc đơn lẻ,off,6.403940200805664,,high,['T1059.001'],block,True,high,['T1190'],block,THROTTLE,True,False,0,1,1,True,True
+g-014,PowerShell -enc từ parent lạ,off,5.877366065979004,,critical,['T1059.001'],block,True,high,[],review,ALERT_OPERATOR,False,False,0,1,0,False,True
+g-015,PowerShell -e -nop -w hidden,off,5.390474081039429,,high,['T1059.001'],block,True,high,[],review,ALERT_OPERATOR,True,False,0,1,0,False,True
+g-016,PowerShell IEX DownloadString,off,7.954159736633301,,critical,['T1059.001'],block,True,high,"['T1059.001', 'T1105']",block,THROTTLE,False,True,1,1,2,True,True
+g-017,schtasks tạo task độc,off,9.620391368865967,,high,['T1053.005'],block,True,high,['T1053.005'],block,THROTTLE,True,True,1,1,1,True,True
+g-018,schtasks + Run key,off,7.917906045913696,,high,['T1547.001'],block,True,medium,['T1190'],review,ALERT_OPERATOR,False,False,0,1,1,False,True
+g-019,Scheduled task từ webshell,off,5.601078033447266,,critical,['T1053.005'],block,True,high,[],review,ALERT_OPERATOR,False,False,0,1,0,False,True
+g-020,Run key modification EID 13,off,5.9510064125061035,,high,['T1547.001'],block,True,high,['T1190'],block,THROTTLE,True,False,0,1,1,True,True
+g-021,whoami,off,8.10200047492981,,medium,['T1033'],review,True,high,['T1190'],block,THROTTLE,False,False,0,1,1,False,True
+g-022,systeminfo,off,9.769779682159424,,low,['T1082'],review,True,high,"['T1190', 'T1505.003']",review,ALERT_OPERATOR,False,False,0,1,2,True,True
+g-023,certutil decode,off,5.620609521865845,,high,['T1140'],block,True,high,['T1190'],block,THROTTLE,True,False,0,1,1,True,True
+g-024,bitsadmin download,off,7.483982801437378,,high,['T1105'],block,True,high,['T1197'],block,THROTTLE,True,False,0,1,1,True,True
+g-025,mshta http,off,7.11591362953186,,high,['T1218.005'],block,True,high,['T1218.005'],block,THROTTLE,True,True,1,1,1,True,True
+g-026,HTTP beacon từ process lạ,off,6.247632265090942,,high,['T1071'],block,True,high,['T1071'],block,THROTTLE,True,True,1,1,1,True,True
+g-027,DNS tunneling,off,7.744577646255493,,high,['T1071.004'],block,True,high,['T1071.004'],block,THROTTLE,True,True,1,1,1,True,True
+g-028,Kết nối tới IP C2 đã biết,off,5.918785333633423,,critical,['T1071'],block,True,high,['T1190'],block,THROTTLE,False,False,0,1,1,True,True
+g-029,Outbound lớn từ webserver,off,6.805055856704712,,high,['T1041'],block,True,high,['T1190'],block,THROTTLE,True,False,0,1,1,True,True
+g-030,SMB beacon,off,6.853665113449097,,high,['T1021.002'],block,True,high,['T1560.001'],block,THROTTLE,True,False,0,1,1,True,True
+g-031,Port scan từ IP ngoài,off,19.458925485610962,,medium,"['T1595', 'T1046']",block,True,high,['T1018'],block,THROTTLE,False,False,0,2,1,True,True
+g-032,Port scan từ IP nội bộ lạ,off,13.78667163848877,,medium,['T1046'],block,True,high,['T1018'],block,THROTTLE,False,False,0,1,1,True,True
+g-033,Service scan chậm,off,6.360568046569824,,medium,['T1046'],review,True,high,['T1046'],block,THROTTLE,False,True,1,1,1,False,True
+g-034,IT scanner quét định kỳ,off,10.875741958618164,,low,['T1046'],no_action,False,high,[],review,ALERT_OPERATOR,False,False,0,1,0,False,True
+g-035,Health check từ LB,off,8.23685073852539,,low,[],no_action,False,high,['T1190'],block,THROTTLE,False,False,0,0,1,False,True
+g-036,Admin chạy whoami đúng giờ,off,5.783957242965698,,low,['T1033'],no_action,False,high,['T1190'],block,THROTTLE,False,False,0,1,1,False,True
+g-037,PowerShell admin script có chữ ký,off,7.450310945510864,,low,[],no_action,False,high,['T1190'],review,ALERT_OPERATOR,False,False,0,0,1,False,True
+g-038,Scan từ monitoring system,off,6.290000915527344,,low,['T1046'],no_action,False,high,['T1018'],block,THROTTLE,False,False,0,1,1,False,True
+g-039,Backup job tạo scheduled task,off,7.723729133605957,,low,['T1053.005'],no_action,False,high,['T1053.005'],block,THROTTLE,False,True,1,1,1,False,True
+g-040,Chrome update check,off,6.199312925338745,,low,[],no_action,False,high,['T1190'],block,THROTTLE,False,False,0,0,1,False,True

@@ -1,21 +1,49 @@
+"""
+agent/nodes/analyzer.py — Trạm 3: Llama 3.1 đánh giá MỘT alert (B4.3c: hiệu chỉnh lõi, áp cho mọi profile)
+
+Khác bản cũ (nguyên nhân "HIGH cho mọi thứ", xem TIEN_DO 30/09):
+  - Điểm xuất phát là MỨC CỦA LUẬT SPLUNK; Llama chỉ nâng/hạ khi có lý do và phải nêu lý do.
+  - Đọc kết quả LÀM GIÀU (tài sản, tài khoản, tình báo IP, lịch sử) — trước đây không đọc.
+  - Nhãn của bộ trích xuất chỉ là GỢI Ý (trước: "có nhãn → BẮT BUỘC HIGH").
+  - Cho phép critical theo bằng chứng (trước: cấm critical khi lịch sử IP trống).
+  - Lịch sử lấy từ phần làm giàu (tên/mức luật của các alert trước) — KHÔNG đưa lại phán quyết cũ của
+    Llama vào prompt (trước đây tạo vòng tự khuếch đại).
+  - Bỏ các chữ "BÍ KÍP RAG", "LỆNH TỐI CAO"; bỏ "Incident Severity" suy từ giai đoạn (dễ neo mức sai).
+  - Bỏ luật "low thì xoá mã ATT&CK" — mã mô tả hành vi quan sát được, kể cả khi hợp lệ.
+  - Đặt rõ num_ctx (mặc định 8192) để Ollama không tự cắt đầu prompt.
+B4.3d: Llama không tự chọn 1 trong 4 mức nữa mà chọn 1 trong 4 QUYẾT ĐỊNH (giữ mức luật / hạ vì hợp lệ /
+  hạ một bậc / nâng một bậc) kèm lý do; CODE quy đổi ra mức. Lần chạy thử B4.3c cho thấy mô hình 8B tự chọn
+  mức thì dồn về "medium" (31/39). Prompt chuyển sang tiếng Anh (Llama 3.1 8B theo chỉ dẫn tiếng Anh tốt hơn),
+  lý do vẫn viết tiếng Việt. Llama trả JSON rỗng → thử lại 1 lần rồi mới tính là lỗi.
+Giữ nguyên: tên các trường đầu ra cũ, phạt trust score thấp, báo lỗi LLM (B4.1).
+B5: prompt dựng từ TICKET (core/ticket.py), không đọc raw_log nữa — [RULE]/[CONTEXT]/siêu dữ liệu sự kiện/[HINTS] lấy
+  từ ngăn trusted, giá trị gốc của log lấy từ ngăn untrusted.
+KHÔNG có đánh dấu dữ liệu không tin cậy / cảnh báo tiêm lệnh — đó là Lớp 2 (spotlighting), làm ở B6: bọc đúng
+  chuỗi render_untrusted() của core/ticket.py.
+"""
+import ast
+import json
+import os
+
 from agent.state import SOCAgentState
+from core import ticket as T                     # B5: ticket hai ngăn
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field, field_validator
-import ast
-import os
+
 
 # ==========================================
-# 1. PYDANTIC - BỌC THÉP ĐỊNH DẠNG (Nâng cấp Evidence Strength)
+# 1. KHUNG ĐẦU RA (giữ nguyên tên trường — các trạm sau và bộ đo phụ thuộc)
 # ==========================================
 class AnalyzerOutput(BaseModel):
-    thought_process: str = Field(description="Chi tiết luồng tư duy: Phân tích RAG, đối chiếu log, tìm mâu thuẫn từng bước trước khi ra kết luận.")
-    mitre_mapping: list[str] = Field(description="Định dạng Txxxx hoặc Txxxx.xxx (VD: 'T1190'). Log sạch BẮT BUỘC trả mảng rỗng []")
-    severity: str = Field(description="low, medium, high, critical. Log hợp lệ/sạch thì gán 'low'")
-    evidence_strength: float = Field(description="Độ rõ ràng của bằng chứng trong log thô (0.0 - 1.0). Độc lập với RAG.")
-    confidence_score: float = Field(description="Độ tự tin tổng hợp sau khi đối chiếu cả Log và RAG (0.0 - 1.0).")
-    is_suspicious: bool = Field(description="True nếu có dấu hiệu khả nghi (như tần suất lạ) cần đưa vào diện Monitor.")
-    reasoning: str = Field(description="Giải thích tư duy ngắn gọn bằng tiếng Việt.")
+    thought_process: str = Field(description="At most 4 short sentences: what the rule says, the evidence, the context, the decision.")
+    decision: str = Field(description="Exactly one of: keep_rule_level, downgrade_benign, downgrade_one, upgrade_one")
+    mitre_mapping: list[str] = Field(description="ATT&CK IDs like T1059 or T1059.001. Default: the rule's IDs.")
+    severity: str = Field(description="Your own estimate: low, medium, high or critical. Only used when no rule level is given.")
+    evidence_strength: float = Field(description="How clearly the alert data shows the behavior (0.0 - 1.0).")
+    confidence_score: float = Field(description="Confidence in the decision (0.0 - 1.0).")
+    is_suspicious: bool = Field(description="True if it deserves monitoring even without action.")
+    reasoning: str = Field(description="One or two sentences in English; say why if the rule level was not kept.")
 
     @field_validator("mitre_mapping", mode="before")
     @classmethod
@@ -33,6 +61,7 @@ class AnalyzerOutput(BaseModel):
                 return [v] if v else []
         return []
 
+
 def _get_windows_host_ip() -> str:
     import subprocess
     try:
@@ -43,214 +72,174 @@ def _get_windows_host_ip() -> str:
         pass
     return "127.0.0.1"
 
+
 # langchain_ollama 0.1.x đọc OLLAMA_HOST (base_url param bị bỏ qua)
 if not os.getenv("OLLAMA_HOST"):
     os.environ["OLLAMA_HOST"] = f"http://{_get_windows_host_ip()}:11434"
 
+NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "4096"))
 print("[*] Đang kết nối với Bộ não Llama 3.1 (Ollama)...")
 try:
     ollama_url = os.environ["OLLAMA_HOST"]
-    print(f"[*] Đang gọi Ollama tại: {ollama_url}")
-    llm = ChatOllama(
-        model="llama3.1",
-        temperature=0.0,
-        request_timeout=120
-    )
+    print(f"[*] Đang gọi Ollama tại: {ollama_url} (num_ctx={NUM_CTX})")
+    # B4.3e: num_predict chặn độ dài câu trả lời. Không chặn thì Ollama có thể sinh mãi (tự dịch cửa sổ ngữ cảnh),
+    # còn request_timeout KHÔNG có tác dụng với langchain_ollama 0.1.0 → một alert treo quá 180 s.
+    llm = ChatOllama(model="llama3.1", temperature=0.0, num_ctx=NUM_CTX,
+                     num_predict=int(os.getenv("OLLAMA_NUM_PREDICT", "700")))
     structured_llm = llm.with_structured_output(AnalyzerOutput)
 except Exception as e:
     print(f"[-] LỖI CRITICAL: Không thể gọi Ollama -> {e}")
     structured_llm = None
 
-SYSTEM_PROMPT = """Bạn là Chuyên gia SOC AI Agent của Học viện Kỹ thuật Mật mã (KMA). Bạn là một cỗ máy suy luận logic khách quan.
 
-[NGUYÊN TẮC TỐI THƯỢNG]
-1. Sự thật nằm ở Log. Đọc kỹ toàn bộ "Log thô" — bao gồm mọi trường (message, payload, url, username) — để tìm payload.
-2. Lịch sử IP trong phần [THÔNG TIN CHUỖI TẤN CÔNG] quyết định bối cảnh. Nếu "Lịch sử các sự kiện" ghi "TRỐNG." thì IP chưa có tiền án.
-3. Nếu Incident Severity từ Correlator mâu thuẫn với bằng chứng trong Log, ưu tiên bằng chứng trong Log.
+# ==========================================
+# 2. PROMPT
+# ==========================================
+SYSTEM_PROMPT = """You are a SOC analyst triaging ONE alert raised by a Splunk detection rule.
+Decide whether the rule's severity level is right for THIS alert, using only the data below.
 
-[QUY TẮC CỐT LÕI]
-- Tuân theo LỆNH TỐI CAO [SYSTEM DIRECTIVE] bên dưới khi đánh giá mức độ.
-- Nếu "Lịch sử các sự kiện" = "TRỐNG." thì KHÔNG ĐƯỢC phán quyết CRITICAL.
+Choose exactly one decision:
+- keep_rule_level: the evidence matches what the rule describes and nothing in the context changes it. This is the default.
+- downgrade_benign: the context shows legitimate activity - the source is an IT scanner or monitoring system, or an admin or service account doing its documented job, or the activity matches the rule's "Known false positives" - AND there is no other sign of attack.
+- downgrade_one: the evidence is clearly weaker than what the rule describes (for example a partial or failed attempt), but it is not legitimate activity.
+- upgrade_one: there is evidence beyond the rule: commands or code actually executed on a server (for example a web server process spawning cmd or powershell), the source IP is on a malicious list, or several attack steps from the same source.
 
-[MA TRẬN ĐÁNH GIÁ MỨC ĐỘ (SEVERITY)]
-Quy tắc xếp hạng dựa trên NỘI DUNG LOG và LỊCH SỬ IP:
-1. MỨC LOW: Truy cập bình thường (GET /home, normal_traffic, auth_success thuần túy) VÀ Lịch sử trống hoặc chỉ có mức LOW.
-2. MỨC MEDIUM: Hành vi Dò quét (/.git/config, port_scan, web_access) chưa có payload khai thác.
-3. MỨC HIGH: Phát hiện payload tấn công trong "Log thô" hoặc trong "Attack Indicators". Bao gồm:
-   - SQLi trong BẤT KỲ trường nào: OR '1'='1', UNION SELECT, admin'--, DROP TABLE.
-   - auth_attempt hoặc POST login CÓ payload SQLi → MỨC HIGH (dù event_type là auth_attempt).
-   - Attack Indicators chứa bất kỳ giá trị nào sau: "sql_injection", "rce_attempt", "ssrf_attempt",
-     "http_smuggling", "dns_tunneling", "jwt_privilege_escalation", "header_injection", "header_abuse" → MỨC HIGH.
-   - "rag_poisoning" trong Attack Indicators → CRITICAL trực tiếp (ChromaDB bị inject document giả — tấn công nền tảng tri thức).
-   - SSRF: file://, 169.254, gopher://, internal hostname.
-   - DNS Tunneling: subdomain entropy cao, chuỗi Hex/Base64 dài trong DNS query.
-   - HTTP Smuggling: request có đồng thời Content-Length và Transfer-Encoding.
-   - JWT Admin: Bearer token với role=admin từ client bên ngoài.
-   - Header Injection: X-Forwarded-Host trỏ nội bộ, X-Internal-Trace từ external.
-   - RCE: nc -e, /bin/sh, wget|bash, curl|sh.
-4. MỨC CRITICAL — CHỈ KHI ĐỦ CẢ 2 ĐIỀU KIỆN:
-   ĐIỀU KIỆN A: Sự kiện hiện tại là đăng nhập thành công (auth_success, login_success).
-   ĐIỀU KIỆN B: Kiểm tra "Lịch sử các sự kiện" bên dưới — không phải "TRỐNG." VÀ có ít nhất một entry với trường "severity" = "high" hoặc "critical".
-   → Không đủ ĐIỀU KIỆN B → KHÔNG gán CRITICAL.
-   - RAG Poisoning: hành vi insert/add vào ChromaDB/mitre_knowledge → CRITICAL.
+Notes:
+- Extractor hints are keyword matches and can be wrong; check them against the alert data.
+- Reference documents about the rule that fired and about its ATT&CK techniques are accurate. Documents marked "related" may not match; never adopt another rule's level.
+- mitre_mapping: use the rule's ATT&CK IDs unless the evidence clearly shows otherwise; keep them for legitimate activity too.
+- evidence_strength (0-1): how clearly the alert data shows the behavior. confidence_score (0-1): confidence in your decision.
+- severity: your own estimate (low, medium, high, critical); it is only used when no rule level is given.
+- Keep thought_process under 80 words. Keep reasoning to one or two sentences; say why if you did not keep the rule level. Write everything in English.
 
-[LỆNH TỐI CAO TỪ HỆ THỐNG (SYSTEM DIRECTIVE)]
-{dynamic_rule}
+[RULE THAT FIRED]
+{rule_block}
 
-[QUY TẮC ĐẦU RA JSON BẮT BUỘC]
-- thought_process: (1) Log thô và Attack Indicators chứa hành vi/payload gì cụ thể? (2) Lịch sử IP trống hay có sự kiện severity cao? (3) Áp dụng Ma trận cho ra kết quả nào?
-- LUẬT THÉP AUTH_SUCCESS: Nếu event_type="auth_success" VÀ "Lịch sử các sự kiện" = "TRỐNG." → BẮT BUỘC trả LOW, mitre_mapping=[].
-- reasoning: Tóm tắt ngắn. auth_attempt KHÁC auth_success.
-- mitre_mapping: Mã MITRE hoặc [].
-- is_suspicious: true/false.
+[CONTEXT - looked up from the asset inventory, account list, IP threat intel and alert history]
+{context_block}
 
-[THÔNG TIN CHUỖI TẤN CÔNG (KILL CHAIN)]
-- Incident Severity: {incident_severity}
-- Lịch sử các sự kiện: {attack_timeline}
+[ALERT DATA]
+{alert_data}
 
-[DỮ LIỆU CA ĐIỀU TRA HIỆN TẠI]
-- Log thô: {raw_log}
-- IOCs và Attack Indicators: {extracted_ioc}
-- BÍ KÍP RAG: {rag_context}
+[EXTRACTOR HINTS]
+{indicators}
+
+[REFERENCE DOCUMENTS]
+{rag_context}
 """
+
+LEVELS = ["low", "medium", "high", "critical"]
+DECISIONS = {"keep_rule_level", "downgrade_benign", "downgrade_one", "upgrade_one"}
+
+
+def decide_severity(decision: str, rule_level: str, llm_severity: str):
+    """B4.3d: quyết định của Llama + mức luật → mức cuối (tất định). Trả (mức, ghi chú)."""
+    rl = {"informational": "low"}.get(rule_level, rule_level)
+    own = (llm_severity or "").lower().strip()
+    if rl not in LEVELS:                       # không có mức luật (đường /analyze cũ) → dùng ước lượng của Llama
+        return (own if own in LEVELS else "medium"), "không có mức luật → dùng ước lượng của Llama"
+    d = (decision or "").strip().lower()
+    if d not in DECISIONS:
+        return rl, f"quyết định lạ '{decision}' → giữ mức luật"
+    i = LEVELS.index(rl)
+    sev = {"keep_rule_level": rl, "downgrade_benign": "low",
+           "downgrade_one": LEVELS[max(0, i - 1)], "upgrade_one": LEVELS[min(3, i + 1)]}[d]
+    return sev, f"{d}: {rl} → {sev}"
+
+
+# B5: các khối [RULE] / [CONTEXT] / [ALERT DATA] / [HINTS] nay do core/ticket.py diễn ra từ ticket
+#     (render_rule, render_context, render_alert_data, render_hints) — Reflection dùng chung.
+
+
+# ==========================================
+# 3. NODE
+# ==========================================
 def node_analyzer(state: SOCAgentState):
     print("\n[Trạm 3 - Analyzer] Llama 3.1 đang phân tích dữ liệu...")
-    
-    rag_context = state.get("rag_context", "")
-    raw_log = state.get("raw_log", {})
-    extracted_ioc = state.get("extracted_ioc", {})
-    trust_score = state.get("context_trust_score", 0.0) 
-    
-    # Lấy dữ liệu từ Trạm Correlator
-    incident_severity = state.get("incident_severity", "low")
-    current_ip = state.get("source_ip", "")
-    attack_timeline = state.get("attack_timeline", [])
 
-    # Lấy lịch sử (bỏ event hiện tại là phần tử cuối), lọc đúng IP
-    full_history = attack_timeline[:-1] if len(attack_timeline) > 1 else []
-    if current_ip and current_ip != "unknown_ip":
-        history_only = [e for e in full_history if e.get("source_ip") == current_ip]
-    else:
-        history_only = full_history
-
-    history_len = len(history_only)
-    
-    _SEV_ORDER = {"critical": 3, "high": 2, "medium": 1, "low": 0}
-
-    if history_len == 0:
-        timeline_context = "TRỐNG."
-        dynamic_rule = "LỊCH SỬ IP TRỐNG. Đánh giá hoàn toàn dựa vào nội dung Log thô và Attack Indicators hiện tại. Payload tấn công trong Log là bằng chứng thực — hãy báo cáo đúng mức theo Ma trận (SQLi → HIGH, RCE → HIGH, SSRF → HIGH)."
-    else:
-        timeline_context = str(history_only)
-        max_prior_severity = max(
-            (e.get("severity", "low") for e in history_only),
-            key=lambda s: _SEV_ORDER.get(s, 0),
-            default="low"
-        )
-        dynamic_rule = (
-            f"IP NÀY ĐÃ CÓ {history_len} SỰ KIỆN TRONG QUÁ KHỨ "
-            f"(MỨC ĐỘ NGUY HIỂM CAO NHẤT ĐÃ XÁC NHẬN: {max_prior_severity.upper()}). "
-            f"HÃY ĐỐI CHIẾU VỚI LOG HIỆN TẠI."
-        )
-
+    alert = state.get("alert", {}) or {}
+    raw_log = state.get("raw_log", {}) or {}          # chỉ còn dùng để lấy mức luật ở đường /analyze cũ
+    ticket = T.ticket_from_state(state)              # B5: LLM chỉ đọc ticket
+    rag_context = state.get("rag_context", "") or ""
+    trust_score = state.get("context_trust_score", 0.0)
     knowledge_conflict = state.get("knowledge_conflict", False)
-    
-    #notes = list(state.get("investigation_notes", []))
-    notes = []
-    notes.append("Analyzer: Bắt đầu suy luận Llama 3.1...")
 
-    if not rag_context.strip() or rag_context == "No trusted context retrieved.":
-        notes.append("Analyzer: [CẢNH BÁO] Không có RAG context. Kích hoạt Uncertain Mode.")
-        rag_context = "RỖNG."
+    notes = ["Analyzer: Bắt đầu suy luận Llama 3.1..."]
+    if not rag_context.strip():
+        rag_context = "No reference documents."
+        notes.append("Analyzer: không có tài liệu tham khảo.")
 
     if not structured_llm:
-         notes.append("Analyzer: [CẢNH BÁO] Không có LLM.")
-         return {
-             "mitre_mapping": [], "severity": "low",
-             "confidence_score": 0.0, "is_suspicious": False,
-             "knowledge_conflict": knowledge_conflict, "evidence_strength": 0.0, # Đã fix bug NameError ở đây
-             "raw_ai_verdict": {}, "investigation_notes": notes,
-             # B4.1: báo lỗi LLM ra ngoài thay vì âm thầm trả "low" — bộ đo sẽ loại ca này
-             "llm_error": True, "llm_error_detail": "Analyzer: không khởi tạo được LLM",
-         }
+        notes.append("Analyzer: [CẢNH BÁO] Không có LLM.")
+        return {
+            "mitre_mapping": [], "severity": "low", "confidence_score": 0.0, "is_suspicious": False,
+            "knowledge_conflict": knowledge_conflict, "evidence_strength": 0.0,
+            "raw_ai_verdict": {}, "investigation_notes": notes,
+            # B4.1: báo lỗi LLM ra ngoài thay vì âm thầm trả "low" — bộ đo sẽ loại ca này
+            "llm_error": True, "llm_error_detail": "Analyzer: không khởi tạo được LLM",
+        }
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),
-        ("human", "Phân tích mối đe dọa. Xuất JSON đầy đủ các trường.")
+        ("human", "Triage the alert above. Return JSON with every field."),
     ])
-
     chain = prompt | structured_llm
 
     try:
-        # [THÊM MỚI] Bơm dữ liệu Correlator vào biến Prompt
-        result: AnalyzerOutput = chain.invoke({
+        inputs = {
+            "rule_block": T.render_rule(ticket),
+            "context_block": T.render_context(ticket),
+            "alert_data": T.render_alert_data(ticket),
+            "indicators": T.render_hints(ticket),
             "rag_context": rag_context,
-            "raw_log": raw_log,
-            "extracted_ioc": extracted_ioc,
-            "trust_score": trust_score,
-            "incident_severity": incident_severity.upper(),
-            "attack_timeline": timeline_context,
-            "dynamic_rule": dynamic_rule
-        })
-        
-        raw_ai_verdict = {
-            "thought_process": result.thought_process,
-            "severity": result.severity,
-            "evidence_strength": result.evidence_strength,
-            "confidence": result.confidence_score,
-            "mitre": result.mitre_mapping,
-            "is_suspicious": result.is_suspicious,
-            "reasoning": result.reasoning
         }
+        result = None
+        for attempt in range(2):                  # B4.3d: JSON rỗng → thử lại 1 lần
+            _t0 = __import__("time").time()
+            result = chain.invoke(inputs)
+            notes.append(f"Analyzer: Llama trả lời sau {__import__('time').time() - _t0:.1f}s (lần {attempt + 1})")
+            if result is not None:
+                break
+            notes.append("Analyzer: Llama trả JSON rỗng — thử lại")
+        if result is None:
+            raise ValueError("Llama trả JSON rỗng 2 lần liên tiếp")
 
+        # B4.3h: Llama đôi khi để trống reasoning (thấy ở ca Chrome update) → lấy tạm thought_process để cột
+        # pred_reasoning của bộ đo không bị rỗng; mã ATT&CK rỗng "" cũng bỏ luôn trong raw_ai_verdict.
+        _reasoning = (result.reasoning or "").strip() or (result.thought_process or "").strip()[:400]
+        _mitre = [m for m in result.mitre_mapping if str(m).strip()]
+        raw_ai_verdict = {
+            "thought_process": result.thought_process, "decision": result.decision, "severity": result.severity,
+            "evidence_strength": result.evidence_strength, "confidence": result.confidence_score,
+            "mitre": _mitre, "is_suspicious": result.is_suspicious, "reasoning": _reasoning,
+        }
+        _tl = str(((ticket.get("trusted") or {}).get("rule") or {}).get("level") or "")
+        rule_level = (_tl if _tl in LEVELS + ["informational"]
+                      else str(alert.get("rule_level") or raw_log.get("rule_level") or "")).lower()
+        final_severity, how = decide_severity(result.decision, rule_level, result.severity)
+        notes.append(f"Analyzer [Quyết định]: {how}")
         final_confidence = max(0.0, min(1.0, float(result.confidence_score)))
-        valid_levels = {"low", "medium", "high", "critical"}
-        final_severity = result.severity.lower().strip()
-        if final_severity not in valid_levels:
-            final_severity = "medium"
-        final_mitre = result.mitre_mapping
-        final_suspicious = result.is_suspicious
+        evidence = max(0.0, min(1.0, float(result.evidence_strength)))
 
-        # =========================================================================
-        # TRUST PENALTY THEO SEVERITY
-        # =========================================================================
+        # Phạt khi tài liệu tham khảo kém tin cậy (giữ từ bản cũ)
         if trust_score < 0.3 and final_confidence > 0.0:
-            if final_severity in ["low", "medium"]:
-                final_confidence *= 0.5
-                notes.append(f"Analyzer [TRUST PENALTY]: Giảm 50% Confidence (còn {final_confidence}) do Trust Score thấp.")
-            elif final_severity == "high":
-                final_confidence *= 0.75
-                notes.append(f"Analyzer [TRUST PENALTY]: Giảm 25% Confidence (còn {final_confidence}) do Trust Score thấp.")
-                
-        # [ĐÃ FIX BUG Ở ĐÂY] Kẹp lại giá trị an toàn tuyệt đối
-        final_confidence = max(0.0, min(1.0, final_confidence))
+            factor = 0.5 if final_severity in ("low", "medium") else (0.75 if final_severity == "high" else 1.0)
+            if factor < 1.0:
+                final_confidence = max(0.0, min(1.0, final_confidence * factor))
+                notes.append(f"Analyzer [TRUST PENALTY]: nhân Confidence ×{factor} (còn {final_confidence}) do Trust Score thấp.")
 
-        # =========================================================================
-        # OVERRIDE MỀM MỎNG HƠN (Giữ tối đa 0.3)
-        # =========================================================================
-        override_triggered = False
-        if final_severity == "low" and len(final_mitre) > 0:
-            override_triggered = True
-            final_confidence = min(final_confidence, 0.3)
-            final_mitre = []
-            notes.append("Analyzer [SYSTEM OVERRIDE]: Xóa MITRE do Severity LOW, giới hạn Confidence tối đa 0.3 để phục vụ Monitor.")
-            print("\n[!] CẢNH BÁO: Kích hoạt System Override (Soft Cap).")
-
-        notes.append(f"Analyzer [Thought]: {result.reasoning}")
-        if override_triggered:
-            notes.append(f"Analyzer [Kết quả (Đã Override)]: Mức độ={final_severity.upper()} | MITRE={final_mitre} | Evidence={result.evidence_strength} | Tự tin={final_confidence}")
-        else:
-            notes.append(f"Analyzer [Kết quả cuối]: Mức độ={final_severity.upper()} | MITRE={final_mitre} | Evidence={result.evidence_strength} | Tự tin={final_confidence}")
-        
-        print(f"[+] Phán quyết: {final_severity.upper()} (Evidence: {result.evidence_strength} | Tự tin: {final_confidence})")
+        notes.append(f"Analyzer [Thought]: {_reasoning}")
+        notes.append(f"Analyzer [Kết quả]: Mức độ={final_severity.upper()} | MITRE={_mitre} | "
+                     f"Evidence={evidence} | Tự tin={final_confidence}")
+        print(f"[+] Phán quyết: {final_severity.upper()} (Evidence: {evidence} | Tự tin: {final_confidence})")
 
         return {
-            "mitre_mapping": final_mitre,
+            "mitre_mapping": _mitre,   # B4.3g: bỏ mã rỗng ""
             "severity": final_severity,
             "confidence_score": final_confidence,
-            "is_suspicious": final_suspicious,
+            "is_suspicious": result.is_suspicious,
             "knowledge_conflict": knowledge_conflict,
-            "evidence_strength": result.evidence_strength,
+            "evidence_strength": evidence,
             "raw_ai_verdict": raw_ai_verdict,
             "investigation_notes": notes,
             "llm_error": False, "llm_error_detail": "",   # B4.1: LLM chạy bình thường
@@ -261,7 +250,7 @@ def node_analyzer(state: SOCAgentState):
         notes.append(f"Analyzer: [LỖI CRITICAL] LLM suy luận thất bại -> {e}.")
         return {
             "mitre_mapping": [], "severity": "low", "confidence_score": 0.0,
-            "is_suspicious": False, "knowledge_conflict": knowledge_conflict,"evidence_strength": 0.0,
+            "is_suspicious": False, "knowledge_conflict": knowledge_conflict, "evidence_strength": 0.0,
             "raw_ai_verdict": {"error": str(e)}, "investigation_notes": notes,
             # B4.1: kết quả "low" ở trên chỉ là giá trị lấp chỗ — đánh dấu để không ai tính nó là phán quyết thật
             "llm_error": True, "llm_error_detail": f"Analyzer: {type(e).__name__}: {str(e)[:160]}",

@@ -1,0 +1,25 @@
+title: AegisSOC - Suricata Network Scan Alert
+id: 80dcec97-b944-45de-9802-73453a22bd7e
+status: experimental
+description: |
+    Suricata raised an ET SCAN signature (port or service scan) against a lab host.
+    Written for the AegisSOC lab because SigmaHQ has no rules for Suricata alerts.
+author: AegisSOC team
+date: 2026-09-30
+tags:
+    - attack.discovery
+    - attack.t1046
+    - attack.reconnaissance
+    - attack.t1595
+logsource:
+    product: suricata
+    category: ids
+detection:
+    selection:
+        event_type: 'alert'
+        alert.signature|startswith: 'ET SCAN'
+    condition: selection
+falsepositives:
+    - Scheduled vulnerability scanners and monitoring systems owned by IT (see assets/inventory.yaml)
+level: medium
+x_aegis_lab_use: "quét cổng/dịch vụ — FP: máy quét IT, hệ giám sát"

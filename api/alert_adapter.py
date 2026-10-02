@@ -8,14 +8,17 @@ Hai việc:
      mà các node cũ (Extractor, Correlator, Analyzer, Reflection) đang đọc.
 
 Bản alert gốc, nguyên vẹn, được đưa vào graph song song qua `state["alert"]`.
-Node làm giàu (Ngày 2) và bộ dựng ticket (Ngày 3) đọc `state["alert"]`, KHÔNG đọc raw_log.
-Khi Analyzer/Reflection chuyển sang đọc ticket (Ngày 3), `to_legacy_raw_log` sẽ bỏ.
+Node làm giàu (Ngày 2) và bộ dựng ticket (B5, core/ticket.py) đọc `state["alert"]`, KHÔNG đọc raw_log.
+B5: Analyzer/Reflection đã chuyển sang đọc ticket. `to_legacy_raw_log` còn giữ cho Extractor + Correlator
+(2 trạm tất định cũ, dò regex và xếp giai đoạn trên raw_log) — không có gì từ đây đi thẳng vào LLM nữa.
 """
 import ipaddress
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from core.fields import canonical_fields   # B5.1: tên trường tương đương (IIS/Sigma/Splunk → tên chuẩn)
 
 # ==========================================
 # 1. KHUÔN HỢP ĐỒNG ALERT
@@ -89,8 +92,8 @@ _ATTACK_TO_EVENT_TYPE = [
     ("T1190", "web_attack"),       # "web_attack" → exploitation
     ("T1505", "webshell_exec"),    # "shell" → execution
     ("T1059", "command_exec"),     # "exec" → execution
-    ("T1071", "c2_exfil"),         # "exfil" → exfiltration
-    ("T1041", "c2_exfil"),
+    ("T1071", "c2_beacon"),        # B4.3c: C2 ≠ tuồn dữ liệu — "c2" → command_and_control (trước: exfiltration → CRITICAL)
+    ("T1041", "c2_exfil"),         # "exfil" → exfiltration
     ("T1048", "c2_exfil"),
     # Chưa có giai đoạn tương ứng trong bảng cũ → Correlator ra "unknown".
     # Để phần làm giàu (Ngày 2) xử lý, không sửa Correlator ở B1.
@@ -138,6 +141,12 @@ def to_legacy_raw_log(alert: Alert) -> Dict[str, Any]:
     raw: Dict[str, Any] = {}
     for key, value in alert.fields.items():
         raw[f"orig_{key}" if key in _CONTRACT_KEYS_IN_RAW else key] = value
+    # B5.1: thêm khoá chuẩn còn thiếu (vd. cs-uri-stem + cs-uri-query → request_uri, cs(User-Agent) →
+    # http_user_agent) để Extractor/Retriever đọc được mọi kiểu đặt tên. Không ghi đè khoá gốc; ticket
+    # (thứ LLM đọc) vẫn dùng alert.fields nguyên văn nên KHÔNG thấy các khoá thêm này.
+    for key, value in canonical_fields(alert.fields).items():
+        if key not in raw and key not in _CONTRACT_KEYS_IN_RAW:
+            raw[key] = value
 
     raw.update({
         "timestamp": alert.timestamp,

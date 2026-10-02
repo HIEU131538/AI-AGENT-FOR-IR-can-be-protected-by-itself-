@@ -17,6 +17,7 @@ from agent.state import SOCAgentState
 from agent.nodes.extractor import node_extractor
 from agent.nodes.correlator import node_correlator
 from agent.nodes.enricher import node_enricher   # Ngày 2: làm giàu tất định
+from core.ticket import node_ticket_builder       # B5: ticket hai ngăn (trusted / untrusted)
 from agent.nodes.retriever import node_retriever
 from agent.nodes.analyzer import node_analyzer
 from agent.nodes.reflection import node_reflection
@@ -25,17 +26,36 @@ from agent.nodes.responder import node_responder
 # ==========================================
 # TRẠM HUMAN REVIEW & ĐỊNH TUYẾN
 # ==========================================
+def _human_review_reasons(state) -> list:
+    """B4.3a — lý do chuyển người duyệt (lõi, áp cho mọi profile). Ngày 4 (Lớp 1) sẽ thêm lý do
+    theo bảng quyết định; khi đó chỉ cần đặt agent_mode = "human_review_required" trước Reflection."""
+    reasons = []
+    if state.get("llm_error"):
+        reasons.append(f"LLM lỗi, kết luận chỉ là giá trị lấp chỗ ({(state.get('llm_error_detail') or '')[:120]})")
+    if state.get("knowledge_conflict"):
+        reasons.append("Reflection thấy tài liệu RAG mâu thuẫn với bằng chứng trong log")
+    if state.get("agent_mode") == "human_review_required" and not reasons:
+        reasons.append("được yêu cầu người duyệt")
+    return reasons
+
+
 def node_human_review(state: SOCAgentState):
     print("\n[Trạm 5.5 - Human Review] 🛑 HỆ THỐNG TẠM DỪNG: CẦN SỰ PHÊ DUYỆT CỦA ADMIN!")
-    notes = list(state.get("investigation_notes", []))
-    notes.append("System [Human-in-the-Loop]: Đã đẩy cảnh báo qua Telegram. Chờ duyệt...")
-    return {"investigation_notes": notes, "final_response": "Pending Human Approval"}
+    reason = "; ".join(_human_review_reasons(state)) or "được yêu cầu người duyệt"
+    # B4.3a: chỉ trả ghi chú MỚI — investigation_notes cộng dồn bằng operator.add, trả lại cả danh
+    # sách cũ (như trước) sẽ nhân đôi toàn bộ nhật ký. Không thực thi hành động nào ở nhánh này.
+    return {
+        "agent_mode": "human_review_required",
+        "action_taken": "human_review",
+        "response_reason": f"Chờ người duyệt: {reason}. Chưa thực thi hành động nào.",
+        "final_response": "Pending Human Approval",
+        "investigation_notes": [f"System [Human-in-the-Loop]: Chuyển người duyệt — {reason}. "
+                                f"Chưa thực thi hành động nào."],
+    }
 
 def route_after_reflection(state: SOCAgentState) -> str:
-    mode = state.get("agent_mode", "autonomous")
-    if mode == "human_review_required":
-        return "human_review"
-    return "responder"
+    # B4.3a: trước đây chỉ đọc agent_mode mà không trạm nào đặt → nhánh này không bao giờ chạy.
+    return "human_review" if _human_review_reasons(state) else "responder"
 
 # ==========================================
 # DỰNG SƠ ĐỒ THẦN KINH (THE GRAPH)
@@ -45,6 +65,7 @@ workflow = StateGraph(SOCAgentState)
 workflow.add_node("extractor", node_extractor)
 workflow.add_node("correlator", node_correlator)
 workflow.add_node("enricher", node_enricher)
+workflow.add_node("ticket_builder", node_ticket_builder)
 workflow.add_node("retriever", node_retriever)
 workflow.add_node("analyzer", node_analyzer)
 workflow.add_node("reflection", node_reflection)
@@ -54,7 +75,8 @@ workflow.add_node("responder", node_responder)
 workflow.set_entry_point("extractor")          
 workflow.add_edge("extractor", "correlator")          
 workflow.add_edge("correlator", "enricher")           # Ngày 2: làm giàu đứng ngay sau Correlator
-workflow.add_edge("enricher", "retriever")
+workflow.add_edge("enricher", "ticket_builder")      # B5: làm giàu → TICKET → RAG → LLM (kế hoạch mục 3)
+workflow.add_edge("ticket_builder", "retriever")
 workflow.add_edge("retriever", "analyzer")            
 workflow.add_edge("analyzer", "reflection")           
 

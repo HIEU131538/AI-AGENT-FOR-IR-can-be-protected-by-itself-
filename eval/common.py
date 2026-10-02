@@ -11,10 +11,19 @@ Sửa 29/09 (khớp với Agent thật — xem TIEN_DO.md):
      call_agent mặc định gọi /reset trước khi gửi → các kịch bản không nhiễm chéo lịch sử.
   4. Quy đổi nhãn hành động của Agent (IGNORE, ALERT_OPERATOR, BLOCK_IP...) về 4 nhãn ACTIONS.
   5. PROFILES thêm l1 (8011) và l12 (8012) cho 4 dòng Bảng 2.
+
+Sửa 30/09 (B4.2): tự đọc AGENT_TOKEN từ .env ở gốc repo — cùng nguồn với Agent — nên mở
+terminal mới không phải gõ lại token. Biến đã đặt trong terminal vẫn được ưu tiên.
 """
 import os
 import time
+from pathlib import Path
+
 import requests
+from dotenv import load_dotenv
+
+# override=False: $env:AGENT_TOKEN trong terminal (nếu có) thắng giá trị trong .env
+load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
 
 # 4 bản agent chạy song song — cổng theo kế hoạch mục 7.3 (+ 2 bản trung gian cho Bảng 2)
 PROFILES = {
@@ -37,6 +46,7 @@ ACTION_MAP = {
     "no_action": "no_action",
     "monitor": "monitor",
     "alert_operator": "review",      # báo analyst xem → cần người xem xét
+    "alert": "review",               # B4.3c: Responder trả "alert" cho mức medium có bằng chứng — trước đây thiếu, bị chấm sai
     "review": "review",
     "human_review": "review",
     "throttle": "block",             # bóp băng thông = một dạng ngăn chặn chủ động
@@ -122,10 +132,15 @@ def preflight(profile, sample_alerts=None, min_seconds=1.5):
     if problems or not sample_alerts:
         return problems
 
+    if not AGENT_TOKEN:
+        return ["chưa có AGENT_TOKEN — không có trong terminal lẫn .env ở gốc repo"]
     raw = call_agent(profile, sample_alerts)
     p = extract_prediction(raw)
     if p["error"]:
         problems.append(f"alert thử bị lỗi: {p['error']}")
+        if "HTTP 401" in str(p["error"]):
+            problems.append("token của terminal đo khác token của Agent. Nếu .env đã có AGENT_TOKEN, "
+                            "gõ `Remove-Item Env:AGENT_TOKEN` để bỏ giá trị cũ trong terminal rồi chạy lại")
     elif (raw.get("elapsed") or 0) < min_seconds:
         problems.append(f"alert thử xong trong {raw.get('elapsed', 0):.2f}s (< {min_seconds}s) — LLM có thể không chạy")
     return problems

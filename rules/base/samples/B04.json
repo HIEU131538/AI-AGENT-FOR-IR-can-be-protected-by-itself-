@@ -1,0 +1,24 @@
+{
+  "alert_id": "scheduler__pinktryni__search__RMD5b9e9e0cb098dcc11_at_1790768460_606:1790768427",
+  "rule_name": "Suspicious Windows Strings In URI",
+  "rule_level": "high",
+  "attack_ids": [
+    "T1505.003"
+  ],
+  "surface": "web",
+  "timestamp": "1790768427",
+  "src_ip": "192.168.10.128",
+  "dest_ip": "192.168.10.135",
+  "dest_port": "80",
+  "host": "proxy01",
+  "uri": "/?file=C:/Windows/win.ini",
+  "status": "200",
+  "http_user_agent": "curl/8.13.0",
+  "fields": {
+    "method": "GET",
+    "uri": "/?file=C:/Windows/win.ini",
+    "status": "200",
+    "http_user_agent": "curl/8.13.0"
+  },
+  "summary": "Suspicious Windows Strings In URI | 192.168.10.128 -> 192.168.10.135:80 | host=proxy01"
+}

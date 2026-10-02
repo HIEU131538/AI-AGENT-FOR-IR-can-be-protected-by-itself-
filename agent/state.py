@@ -8,6 +8,7 @@ class SOCAgentState(TypedDict):
     raw_log: dict             # Log thô ban đầu
     extracted_ioc: dict       # Các IOC bóc tách được (IP, Domain, Hash...)
     rag_context: str          # Tài liệu hướng dẫn từ Vector DB
+    rag_docs: List[Dict[str, Any]]  # B4.3b: tài liệu đã đưa vào context (id, cách lấy, điểm) — chẩn đoán + Ngày 5
     context_trust_score: float # Điểm tin cậy của tài liệu (Chống RAG Poisoning)
 
     # ==========================================
@@ -74,3 +75,10 @@ class SOCAgentState(TypedDict):
     # Khi đó severity "low" chỉ là giá trị lấp chỗ — API trả status "llm_error", bộ đo loại ca này.
     llm_error: bool
     llm_error_detail: str
+
+    # ==========================================
+    # 10. TICKET HAI NGĂN (AegisSOC — B5)
+    # ==========================================
+    # Do core/ticket.py dựng sau Enricher: {"ticket_id", "version", "trusted": {...}, "untrusted": {...}}.
+    # Analyzer + Reflection CHỈ đọc ticket (không đọc raw_log). `trusted` không chứa ký tự nào từ `fields`.
+    ticket: dict

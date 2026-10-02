@@ -153,16 +153,22 @@ def node_responder(state: SOCAgentState):
 
     # BẢO MẬT: Validate IP trước khi xử lý
     source_ip = state.get("extracted_ioc", {}).get("source_ip", "")
+    _ip_field_present = bool(str(source_ip or "").strip())
     if not source_ip or not is_valid_ip(source_ip):
         # Fallback xuống raw log
         raw_log = state.get("raw_log", {})
         if isinstance(raw_log, dict):
             temp_ip = raw_log.get("source_ip", "")
+            _ip_field_present = _ip_field_present or bool(str(temp_ip or "").strip())
             source_ip = temp_ip if is_valid_ip(temp_ip) else "Unknown_IP"
         else:
             source_ip = "Unknown_IP"
 
-    if source_ip == "Unknown_IP":
+    # B4.3c: alert endpoint (Sysmon) vốn KHÔNG có IP nguồn — đó không phải giả mạo log.
+    # Chỉ báo "giả mạo" khi CÓ trường IP nhưng giá trị không hợp lệ.
+    if source_ip == "Unknown_IP" and not _ip_field_present:
+        notes.append("Responder: alert không có IP nguồn (thường là alert endpoint) — không có đích để chặn mạng.")
+    elif source_ip == "Unknown_IP":
         print("⚠️ CẢNH BÁO: Không thể xác thực được Source IP (Có thể là tấn công chèn mã hoặc Log hỏng).")
         notes.append("Responder [CẢNH BÁO ĐỎ]: Source IP không hợp lệ — khả năng Log Injection/Tampering. Bắn cảnh báo khẩn.")
         notes.append(execute_alert_telegram(
@@ -175,45 +181,32 @@ def node_responder(state: SOCAgentState):
     action = "ignore" 
     reason = "Không có mối đe dọa."
     
-    # 1. MA TRẬN ỨNG PHÓ RỦI RO
-    if severity == "critical":
+    # 1. MA TRẬN ỨNG PHÓ RỦI RO — B4.3d: theo quy ước của nhóm (low → không làm gì, medium → người xem,
+    #    high/critical → chặn), bằng chứng yếu (< 0.5) thì chỉ báo người xem. Bản cũ đòi high + evidence ≥ 0.85
+    #    mới hành động nên gần như mọi ca ra ALERT_OPERATOR. Ngày 4 (Lớp 1) quyết ca chặn nào phải chờ duyệt.
+    if severity in ("critical", "high") and evidence < 0.5:
+        action = "alert_operator"
+        reason = f"Mức {severity.upper()} nhưng bằng chứng yếu (Evidence={evidence}). Cần SOC Analyst xác nhận."
+    elif severity == "critical":
         if evidence >= 0.90:
             action = "network_block_full"
-            reason = f"Kill chain xác nhận (Evidence={evidence}). Cô lập hoàn toàn IP — chặn INPUT+OUTPUT+FORWARD."
-        elif evidence >= 0.70:
+            reason = f"Mức Critical, bằng chứng rất mạnh (Evidence={evidence}). Cô lập hoàn toàn IP — chặn INPUT+OUTPUT+FORWARD."
+        else:
             action = "block_ip"
-            reason = f"Mức Critical, bằng chứng khá (Evidence={evidence}). Chặn IP chiều vào (INPUT)."
-        else:
-            action = "alert_operator"
-            reason = "Mức Critical nhưng bằng chứng chưa đủ mạnh. Cần SOC Analyst xác nhận."
-            
+            reason = f"Mức Critical (Evidence={evidence}). Chặn IP chiều vào (INPUT)."
     elif severity == "high":
-        if evidence >= 0.85:
-            action = "throttle"
-            reason = f"Mức High, bằng chứng mạnh (Evidence={evidence}). Bóp băng thông/Ngắt kết nối tạm thời."
-        else:
-            action = "alert_operator"
-            reason = "Mức High nhưng bằng chứng yếu. Cần SOC Analyst xác nhận."
-            
+        action = "block_ip"
+        reason = f"Mức High, có bằng chứng (Evidence={evidence}). Chặn IP chiều vào (INPUT)."
     elif severity == "medium":
-        if evidence >= 0.70:
-            action = "alert"
-            reason = "Mức Medium, có bằng chứng. Bắn cảnh báo toàn hệ thống."
-        elif evidence >= 0.40:
-            action = "alert_operator"
-            reason = "Mức Medium, bằng chứng trung bình. Cần chuyên gia xem xét chéo."
-        else:
-            action = "monitor"
-            reason = "Mức Medium, bằng chứng yếu. Đưa vào danh sách giám sát (Monitor)."
-            
+        action = "alert_operator"
+        reason = "Mức Medium: đáng ngờ, cần SOC Analyst xem xét."
     elif severity == "low":
-        # CHỈNH SỬA: Loại bỏ evidence >= 0.9, chỉ dùng is_suspicious
         if is_suspicious:
             action = "monitor"
-            reason = "Không có IOC trực tiếp nhưng hành vi bất thường theo Correlator (is_suspicious=True). Bật theo dõi."
+            reason = "Mức Low nhưng có điểm bất thường (is_suspicious=True). Bật theo dõi."
         else:
             action = "ignore"
-            reason = "Lưu lượng truy cập an toàn, hợp lệ."
+            reason = "Hoạt động hợp lệ hoặc không đáng kể."
 
     # 2. LỚP PHÒNG NGỰ KNOWLEDGE CONFLICT
     if knowledge_conflict:

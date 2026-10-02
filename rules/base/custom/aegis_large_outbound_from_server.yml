@@ -1,0 +1,30 @@
+title: AegisSOC - Large Outbound Transfer From Web Server
+id: 9188c63d-7073-4388-8c81-4af8e8e43ab8
+status: experimental
+description: |
+    A single flow from the lab web server to a non-private address sent more than 50 MB.
+    Written for the AegisSOC lab (Suricata flow events).
+author: AegisSOC team
+date: 2026-09-30
+tags:
+    - attack.exfiltration
+    - attack.t1041
+    - attack.t1048
+logsource:
+    product: suricata
+    category: flow
+detection:
+    selection:
+        event_type: 'flow'
+        src_ip: '192.168.56.20'
+        flow.bytes_toserver|gt: 50000000
+    filter_private:
+        dest_ip|cidr:
+            - '10.0.0.0/8'
+            - '172.16.0.0/12'
+            - '192.168.0.0/16'
+    condition: selection and not filter_private
+falsepositives:
+    - Backups or software updates pushed to external storage
+level: medium
+x_aegis_lab_use: "tuồn dữ liệu — mức medium, FP: sao lưu"

@@ -40,3 +40,7 @@ pydantic-settings==2.2.1
 
 requests==2.31.0
 pandas==2.2.2
+
+# THƯ VIỆN ĐỂ VẼ MA TRẬN
+
+matplotlib

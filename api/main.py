@@ -14,6 +14,16 @@ from typing import Optional
 from dotenv import load_dotenv
 load_dotenv()  # Load .env TRƯỚC KHI import graph để OLLAMA_BASE_URL sẵn sàng
 
+# B4.3e: 0.0.0.0 là địa chỉ để Ollama NGHE, không phải để GỌI tới (trên Windows gọi 0.0.0.0 luôn lỗi).
+# Terminal trong VS Code/Cursor hay thừa hưởng OLLAMA_HOST=0.0.0.0 cũ → tự đổi sang 127.0.0.1 và cảnh báo.
+import re as _re
+_oh = os.environ.get("OLLAMA_HOST", "").strip()
+_m = _re.fullmatch(r"(?:https?://)?0\.0\.0\.0(?::(\d+))?/?", _oh)
+if _m:
+    os.environ["OLLAMA_HOST"] = f"http://127.0.0.1:{_m.group(1) or '11434'}"
+    print(f"[!] OLLAMA_HOST='{_oh}' là địa chỉ nghe, không gọi được → dùng {os.environ['OLLAMA_HOST']}. "
+          f"Nên gõ `Remove-Item Env:OLLAMA_HOST` trong terminal này.")
+
 # ==========================================
 # CẤU HÌNH LOGGING
 # ==========================================
@@ -204,9 +214,8 @@ MAX_RECENT_RESULTS = 50
 # Đảm bảo IP đã từng thấy trong batch không bị clean-filter lần 2 → luôn vào LLM
 IP_ACTIVITY_LOG: Dict[str, int] = {}
 
-# IP ESCALATION: đếm số lần HIGH/CRITICAL mỗi IP → tự động leo thang CRITICAL sau ngưỡng
+# Đếm số lần HIGH/CRITICAL mỗi IP — CHỈ để hiển thị (B4.3a đã tắt luật tự leo thang 5×HIGH, xem dưới)
 _IP_HIGH_COUNT: Dict[str, int] = {}
-_IP_ESCALATION_THRESHOLD = 5  # sau 5 HIGH từ cùng IP → force CRITICAL + NETWORK_BLOCK_FULL
 _SOAR_EXECUTED_IPS: set = set()  # tránh gọi iptables/Telegram nhiều lần cho cùng 1 IP
 
 # ==========================================
@@ -240,6 +249,8 @@ class AnalysisResponse(BaseModel):
     # B4.1: True nếu LLM lỗi — khi đó severity/action ở trên chỉ là giá trị lấp chỗ
     llm_error: bool = False
     llm_error_detail: str = ""
+    # B5: ticket hai ngăn mà Analyzer/Reflection đã đọc — để truy ngược mỗi quyết định SOAR về đúng dữ liệu LLM thấy
+    ticket: Dict[str, Any] = Field(default_factory=dict)
 
 # ==========================================
 # STARTUP: KHỞI ĐỘNG BACKGROUND MONITOR
@@ -399,39 +410,29 @@ def _analyze_log_impl(payload: LogInput):
             final_state["raw_ai_verdict"] = _mutable_ai
         # ─────────────────────────────────────────────────────────────────────
 
-        # ── IP THRESHOLD ESCALATION ─────────────────────────────────────────────
-        # Sau N log HIGH/CRITICAL từ cùng IP → force CRITICAL, không cần LLM phán lại
+        # ── IP THRESHOLD ESCALATION — ĐÃ TẮT (B4.3a, áp cho mọi profile) ─────────
+        # Luật cũ: 5 lần HIGH từ cùng IP → ép CRITICAL + NETWORK_BLOCK_FULL. Nó đếm chính phán quyết
+        # của Llama nên khuếch đại mọi thiên lệch: Llama lệch về HIGH → tự leo thang → tự cô lập mạng.
+        # Nay chỉ đếm để hiển thị, KHÔNG đổi mức độ hay hành động. Leo thang theo chuỗi sẽ làm lại ở
+        # Ngày 4 bằng bảng quyết định tất định (dựa trên luật Splunk + làm giàu, không dựa vào LLM).
         _escalation_ip = (
             final_state.get("source_ip", "") or payload.raw_log.get("source_ip", "")
         )
-        if _escalation_ip and _escalation_ip not in ("", "unknown_ip", "127.0.0.1"):
-            if severity_result in ("high", "critical"):
-                _IP_HIGH_COUNT[_escalation_ip] = _IP_HIGH_COUNT.get(_escalation_ip, 0) + 1
-            _ip_count = _IP_HIGH_COUNT.get(_escalation_ip, 0)
-            if _ip_count >= _IP_ESCALATION_THRESHOLD and severity_result == "high":
-                logger.info(
-                    f"[IP ESCALATION] {_escalation_ip}: {_ip_count}/{_IP_ESCALATION_THRESHOLD} "
-                    f"HIGH → force CRITICAL + NETWORK_BLOCK_FULL"
-                )
-                severity_result = "critical"
-                evidence_result = max(evidence_result, 0.92)
-                if not _critical_override_applied:
-                    _critical_override_applied = True
-                    _esc_ai = dict(final_state.get("raw_ai_verdict", {}))
-                    _esc_ai["reasoning"] = (
-                        f"[IP Escalation — Deterministic] IP {_escalation_ip} đã kích hoạt "
-                        f"{_ip_count} cảnh báo HIGH/CRITICAL liên tiếp (ngưỡng: {_IP_ESCALATION_THRESHOLD}). "
-                        f"Hệ thống tự động leo thang lên CRITICAL và cô lập mạng đầy đủ "
-                        f"(INPUT + OUTPUT + FORWARD) theo chính sách tích lũy mối đe dọa."
-                    )
-                    final_state = dict(final_state)
-                    final_state["raw_ai_verdict"] = _esc_ai
+        if (_escalation_ip and _escalation_ip not in ("", "unknown_ip", "127.0.0.1")
+                and severity_result in ("high", "critical")):
+            _IP_HIGH_COUNT[_escalation_ip] = _IP_HIGH_COUNT.get(_escalation_ip, 0) + 1
         # ─────────────────────────────────────────────────────────────────────
 
+        # B4.3a: Agent đang ở nhánh người duyệt (LLM lỗi / Reflection thấy mâu thuẫn) → luật kill-chain
+        # vẫn được nâng mức độ, nhưng KHÔNG tự thực thi hành động — để người duyệt quyết.
+        _human_review = str(final_state.get("agent_mode", "")).lower() == "human_review_required"
+        if _critical_override_applied and _human_review:
+            _action_result = "HUMAN_REVIEW"
+            logger.info(f"[ACTION OVERRIDE] Kill-chain CRITICAL nhưng đang chờ người duyệt → không tự thực thi")
         # Khi override kích hoạt, Responder đã chạy với severity cũ → SOAR chưa được thực thi đúng.
         # Tính lại action VÀ thực thi SOAR ngay tại đây với severity CRITICAL đã xác nhận.
-        if _critical_override_applied:
-            _ov_ip   = _escalation_ip or _current_ip  # IP từ escalation hoặc auth_success
+        elif _critical_override_applied:
+            _ov_ip   = _current_ip  # B4.3a: chỉ còn luật auth_success sau chuỗi HIGH kích hoạt override
             _ov_mode = _get_soar_mode()
             if evidence_result >= 0.90:
                 _action_result = "NETWORK_BLOCK_FULL"
@@ -441,9 +442,8 @@ def _analyze_log_impl(payload: LogInput):
                     _SOAR_EXECUTED_IPS.add(_ov_ip)
                     _block_res = _exec_block_full(_ov_ip, _ov_mode)
                     _tele_res  = _exec_alert(
-                        f"🚨 [CRITICAL — IP Escalation] IP {_ov_ip} kích hoạt "
-                        f"{_IP_HIGH_COUNT.get(_ov_ip, 0)} cảnh báo HIGH/CRITICAL liên tiếp. "
-                        f"Hệ thống tự động leo thang CRITICAL + NETWORK_BLOCK_FULL (INPUT+OUTPUT+FORWARD).",
+                        f"🚨 [CRITICAL — Kill-chain] IP {_ov_ip} đăng nhập thành công sau chuỗi cảnh báo "
+                        f"HIGH/CRITICAL. Hệ thống leo thang CRITICAL + NETWORK_BLOCK_FULL (INPUT+OUTPUT+FORWARD).",
                         _ov_mode
                     )
                     logger.info(f"[ACTION OVERRIDE EXEC] {_block_res}")
@@ -529,6 +529,7 @@ def _analyze_log_impl(payload: LogInput):
             enrichment=final_state.get("enrichment") or {},   # Ngày 2
             llm_error=bool(final_state.get("llm_error")),                  # B4.1
             llm_error_detail=final_state.get("llm_error_detail") or "",
+            ticket=final_state.get("ticket") or {},                        # B5
         )
 
         # Lưu vào Live Feed buffer — MỌI log qua LLM đều được ghi (kể cả từ /batch)
@@ -755,7 +756,9 @@ def _process_one_alert(alert: Alert) -> Dict[str, Any]:
     #   SIEM → prefilter → Extractor/Correlator → làm giàu → ticket → LLM → Responder
     # B1 chưa lọc: mọi alert đều vào graph.
     # ──────────────────────────────────────────────────────────────────────
-    raw_log = to_legacy_raw_log(alert)   # giàn giáo cho node cũ — bỏ ở Ngày 3
+    # Giàn giáo cho 2 trạm tất định cũ (Extractor, Correlator) vẫn đọc raw_log. Từ B5, Analyzer/Reflection
+    # KHÔNG đọc raw_log nữa mà đọc ticket (core/ticket.py) dựng từ alert gốc bên dưới.
+    raw_log = to_legacy_raw_log(alert)
     try:
         res = analyze_log(LogInput(raw_log=raw_log, alert=alert.model_dump()))
         return {
@@ -767,8 +770,12 @@ def _process_one_alert(alert: Alert) -> Dict[str, Any]:
             "severity": res.severity,
             "mitre_techniques": res.mitre_techniques,
             "action_taken": res.action_taken,
+            "agent_mode": res.agent_mode,        # B4.3a: AUTONOMOUS | HUMAN_REVIEW_REQUIRED
+            "decision": (res.raw_ai_verdict or {}).get("decision"),          # B4.3d: giữ/hạ/nâng mức luật
+            "reasoning": str((res.raw_ai_verdict or {}).get("reasoning", ""))[:400],   # B4.3d: lý do ngắn của Llama
             "processing_time_ms": res.processing_time_ms,
             "enrichment_summary": res.enrichment.get("summary", ""),   # Ngày 2
+            "ticket_id": (res.ticket or {}).get("ticket_id"),          # B5: tra lại ticket trong /results/recent
             "defense_profile": defense_profile.PROFILE,                # B4: bộ đo kiểm được đang gọi đúng bản
         }
     except HTTPException as e:

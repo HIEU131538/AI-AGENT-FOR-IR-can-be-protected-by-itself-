@@ -37,6 +37,11 @@ def node_extractor(state: SOCAgentState):
 
     # URL-decode (chống obfuscation %2F, %3B, v.v.)
     decoded_log_str = urllib.parse.unquote(combined)
+    # B5.1: trong query string, "+" là dấu cách ("1%27+OR+%271" → "1' OR '1"). unquote() giữ nguyên "+",
+    # nên từ khoá SQLi dạng "' OR '" / "UNION SELECT" không khớp. Nối thêm bản giải mã unquote_plus.
+    _plus_decoded = urllib.parse.unquote_plus(combined)
+    if _plus_decoded != decoded_log_str:
+        decoded_log_str += " " + _plus_decoded
 
     # ── BASE64 BODY DECODE ───────────────────────────────────────────────────
     # Phase 2: payload SSRF/RCE có thể bị base64-encode trong field body/request_body.
@@ -102,7 +107,11 @@ def node_extractor(state: SOCAgentState):
 
     # --- 2. THỢ SĂN DOMAIN (Generic TLDs) ---
     domain_pattern = r'\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b'
-    found_domains = re.findall(domain_pattern, decoded_log_str)
+    # B4.3c: tên file (whoami.exe, backup.bat, backup.ps1...) KHÔNG phải tên miền
+    _file_ext = {"exe", "dll", "bat", "cmd", "ps1", "psm1", "vbs", "hta", "js", "sys", "msi", "scr",
+                 "tmp", "log", "txt", "zip", "rar", "7z", "ini", "cfg", "config", "xml", "json", "aspx", "asp", "php"}
+    found_domains = [d for d in re.findall(domain_pattern, decoded_log_str)
+                     if d.rsplit(".", 1)[-1].lower() not in _file_ext]
     if found_domains:
         extracted_ioc["domains"] = list(set(found_domains))
         notes.append(f"Extractor: Phát hiện Domain -> {extracted_ioc['domains']}")
@@ -135,10 +144,17 @@ def node_extractor(state: SOCAgentState):
         "1=1--", "' OR '", "xp_cmdshell", "exec(",
         "pg_sleep", "waitfor delay", "sleep(", "randomblob(", "benchmark(",
     ]
+    # B4.3c: bỏ "cmd.exe" (có trong vô số log Windows hợp lệ — trước đây gắn nhãn RCE cho 17/40 kịch bản,
+    # kể cả admin chạy whoami) và tách "powershell -enc" sang nhãn riêng encoded_command.
+    # Nhãn ở đây chỉ là GỢI Ý cho Analyzer, không còn bắt buộc mức HIGH.
     rce_keywords = [
-        "nc -e", "/bin/sh", "/bin/bash", "cmd.exe", "powershell -enc",
+        "nc -e", "/bin/sh", "/bin/bash",
         "wget|", "curl|", "wget |", "curl |", "rce_attempt", "|bash", "|sh"
     ]
+    encoded_keywords = ["powershell -enc", "-encodedcommand", "frombase64string"]
+    if any(kw in decoded_log_str.lower() for kw in encoded_keywords):
+        extracted_ioc["attack_indicators"].append("encoded_command")
+        notes.append("Extractor [GỢI Ý]: có lệnh được mã hoá (PowerShell -enc / FromBase64String)")
     ssrf_keywords = [
         "file://", "gopher://", "dict://", "169.254.169.254",
         "metadata.internal", "169.254"

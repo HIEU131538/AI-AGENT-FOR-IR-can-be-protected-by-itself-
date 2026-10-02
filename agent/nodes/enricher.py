@@ -95,6 +95,21 @@ def _asset_index() -> Tuple[Dict[str, dict], Dict[str, dict]]:
     return by_ip, by_name
 
 
+def _account_lookup(user: str) -> Optional[dict]:
+    """B4.3c: tra tài khoản (mục `accounts` của inventory). Khớp DOMAIN\\user hoặc chỉ phần user."""
+    u = (user or "").strip().lower()
+    if not u:
+        return None
+    short = u.split("\\")[-1]
+    for a in _load_yaml(INVENTORY_PATH).get("accounts") or []:
+        if not isinstance(a, dict) or not a.get("name"):
+            continue
+        name = str(a["name"]).strip().lower()
+        if u == name or short == name.split("\\")[-1]:
+            return {"name": str(a["name"]), "role": str(a.get("role") or "unknown"), "note": str(a.get("note") or "")}
+    return None
+
+
 def _ioc_index() -> Dict[str, dict]:
     out: Dict[str, dict] = {}
     for i in _load_yaml(IOC_PATH).get("iocs") or []:
@@ -304,6 +319,15 @@ def node_enricher(state: dict) -> Dict[str, Any]:
         history = {"incident_id": state.get("correlation_id", ""), "event_count": 0,
                    "summary": "", "stages": [], "stages_vi": []}
 
+    # --- 4. Tài khoản (B4.3c) — tiến trình chạy dưới tài khoản nào (trường User của Sysmon) ---
+    fields = alert.get("fields") if isinstance(alert.get("fields"), dict) else {}
+    user = str(fields.get("User") or raw.get("User") or raw.get("orig_User") or "")
+    account = None
+    try:
+        account = _account_lookup(user)
+    except Exception as e:
+        errors.append(f"Không tra được tài khoản: {type(e).__name__}")
+
     # --- Tóm tắt 1 dòng (ghép theo mẫu cố định) ---
     dest_label = dest_ip or (host if dest_match == "host" else "") or "-"
     src_part = _describe_ti(src_ip, ti_src)
@@ -311,6 +335,8 @@ def node_enricher(state: dict) -> Dict[str, Any]:
         src_part += f" = {src_asset['name']} ({src_asset['role']})"
     summary = (f"đích {dest_label}: {_describe_asset(dest_asset)} · nguồn {src_part} · "
                f"lịch sử {history['event_count']} sự kiện")
+    if user:
+        summary += f" · tài khoản {user}: " + (f"{account['role']}" if account else "không có trong danh mục")
 
     enrichment = {
         "version": 1,
@@ -320,6 +346,8 @@ def node_enricher(state: dict) -> Dict[str, Any]:
         "dest_asset": dest_asset,
         "dest_asset_match": dest_match,
         "src_asset": src_asset,
+        "user": user,
+        "account": account,                                  # B4.3c
         "threat_intel": {"src_ip": ti_src, "dest_ip": ti_dest},
         "history": history,
         "summary": summary,
