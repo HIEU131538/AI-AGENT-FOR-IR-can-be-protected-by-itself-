@@ -1,0 +1,12 @@
+dur
+proto
+service
+spkts
+dpkts
+sbytes
+dbytes
+rate
+sload
+dload
+smean
+dmean

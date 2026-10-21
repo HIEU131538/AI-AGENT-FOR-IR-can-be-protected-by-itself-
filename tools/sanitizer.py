@@ -16,8 +16,8 @@ class OutputSanitizer:
 
     # Danh sách trắng các hành động được phép thực thi
     ALLOWED_ACTIONS = {
-        "ignore", "monitor", "alert", "alert_operator", 
-        "throttle", "block_ip", "isolate_container"
+        "ignore", "monitor", "alert", "alert_operator",
+        "throttle", "block_ip", "network_block_full", "isolate_container"
     }
 
     @classmethod

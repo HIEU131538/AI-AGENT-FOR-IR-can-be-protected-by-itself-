@@ -1,0 +1,24 @@
+{
+  "alert_id": "scheduler__pinktryni__search__RMD5ae46ca12e8dfe135_at_1791013560_16842:0",
+  "rule_name": "SQL Injection Strings In URI",
+  "rule_level": "high",
+  "attack_ids": [
+    "T1190"
+  ],
+  "surface": "web",
+  "timestamp": "2026-10-03T07:44:31Z",
+  "src_ip": "192.168.10.128",
+  "dest_ip": "192.168.10.135",
+  "dest_port": 80,
+  "host": "proxy01",
+  "fields": {
+    "body_bytes_sent": "896",
+    "http_host": "192.168.10.135",
+    "http_user_agent": "curl/8.13.0",
+    "method": "GET",
+    "status": "200",
+    "time": "2026-10-03T03:44:31-04:00",
+    "uri": "/?id=1%20UNION%20SELECT%20version()"
+  },
+  "summary": "SQL Injection Strings In URI | 192.168.10.128 -> 192.168.10.135:80 | host=proxy01"
+}

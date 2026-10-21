@@ -35,6 +35,35 @@ assets:
     auto_block_allowed: false
     note: "Load balancer and monitoring - periodic /health requests and service port checks from this host are legitimate"
 
+  # ===== Lab thật (topology bạn Splunk, 04/10) — dùng cho DEMO. Dải 192.168.56.x ở trên giữ nguyên cho benchmark. =====
+  # Máy web = Kali chạy Nginx (proxy01) + Suricata (sensor-net-01), CÓ 2 CARD MẠNG:
+  #   192.168.10.135  mạng lab (không ra Internet)
+  #   192.168.46.166  card ra Internet (NAT) — C01 "Large Outbound Transfer From Web Server" sinh từ card này
+  # Khai CẢ HAI IP cùng tên `proxy01` → Correlator coi là MỘT thực thể (asset:proxy01), nên
+  # B01–B04 (đích .135) và C01 (nguồn .166) nối được thành một chuỗi.
+  - ip: 192.168.10.135
+    name: proxy01
+    role: web_server
+    criticality: high
+    auto_block_allowed: false     # máy thiết yếu: SOAR không được tự chặn
+    note: "Lab Linux web server (Nginx) hosting the web application - lab network interface"
+
+  - ip: 192.168.46.166
+    name: proxy01
+    role: web_server
+    criticality: high
+    auto_block_allowed: false
+    note: "Lab Linux web server (Nginx) hosting the web application - Internet-facing NAT interface"
+
+  # Máy Windows (Sysmon + UF) chạy ứng dụng web qua XAMPP — máy nạn nhân của kịch bản demo 1 (B05–B07, B12, B17, B21).
+  # Alert endpoint có host = DESKTOP-6FBL9UV → khớp theo tên.
+  - ip: 192.168.10.128
+    name: DESKTOP-6FBL9UV
+    role: web_server
+    criticality: high
+    auto_block_allowed: false     # máy chủ ứng dụng: SOAR không tự cách ly, phải chờ người duyệt
+    note: "Lab Windows 10 host running the XAMPP (Apache/PHP) web application"
+
 # B4.3c: tài khoản — tra theo trường User của alert endpoint (Sysmon). Không phân biệt hoa thường.
 # Trường:
 #   name   tài khoản dạng DOMAIN\user (khớp cả khi alert chỉ ghi phần user)

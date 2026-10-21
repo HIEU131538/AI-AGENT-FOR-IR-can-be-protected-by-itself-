@@ -1,0 +1,24 @@
+{
+  "variant": "subset_flow",
+  "features": [
+    "dur",
+    "proto",
+    "service",
+    "spkts",
+    "dpkts",
+    "sbytes",
+    "dbytes",
+    "rate",
+    "sload",
+    "dload",
+    "smean",
+    "dmean"
+  ],
+  "cost_ratio": 10,
+  "threshold": 0.0909,
+  "band_lo": 0.0909,
+  "band_hi": 0.1818,
+  "n_train": 81015,
+  "n_calib": 20254,
+  "note": "DROP nếu p<band_lo; PASS_UNCERTAIN nếu band_lo<=p<band_hi; PASS nếu p>=band_hi. Ngưỡng chi phí t nằm trong dải. Thiếu dữ liệu luồng → PASS (an toàn)."
+}

@@ -1,18 +1,35 @@
 from agent.state import SOCAgentState
 from core import ticket as T                     # B5: Reflection đọc ticket, không đọc raw_log
+from core.profile import layer_enabled            # B6: Lớp 2 spotlighting
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AliasChoices
+from typing import Optional
 import json
 import os
 
 # ==========================================
 # 1. PYDANTIC - BỘ KHUNG KIỂM TOÁN
 # ==========================================
+# B6.1: DUNG NẠP output của Llama. Llama 3.1 8B thỉnh thoảng gõ nhầm tên trường
+# (vd 'adjusted_conflict' do trộn 'has_conflict' + 'adjusted_confidence') hoặc bỏ sót trường.
+# Trước đây 1 lần gõ nhầm → ValidationError → cả node Reflection sập → ép sang Human Review (nhiễu benchmark).
+# Nay: nhận nhiều tên gọi (AliasChoices) + có mặc định; thiếu thì coi như "không điều chỉnh", giữ phán quyết gốc.
+# KHÔNG đổi logic phòng vệ lớp nào — chỉ làm phần đọc JSON chịu lỗi tốt hơn.
 class ReflectionOutput(BaseModel):
-    has_conflict: bool = Field(description="True if the reference documents contradict the evidence in the log or contradict security practice. False if consistent.")
-    adjusted_confidence: float = Field(description="New confidence (0.0 - 1.0). Only lower it when there is a real risk.")
-    reflection_notes: str = Field(description="At most 3 short sentences in English: why there is or is not a conflict.")
+    has_conflict: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("has_conflict", "conflict", "knowledge_conflict", "has_conflicts"),
+        description="True if the reference documents contradict the evidence in the log or contradict security practice. False if consistent.")
+    adjusted_confidence: Optional[float] = Field(
+        default=None,
+        validation_alias=AliasChoices("adjusted_confidence", "adjusted_conflict", "new_confidence",
+                                      "confidence", "adjusted_conf"),
+        description="New confidence (0.0 - 1.0). Only lower it when there is a real risk.")
+    reflection_notes: str = Field(
+        default="",
+        validation_alias=AliasChoices("reflection_notes", "notes", "reason"),
+        description="At most 3 short sentences in English: why there is or is not a conflict.")
 
 def _get_windows_host_ip() -> str:
     import subprocess
@@ -75,7 +92,15 @@ def node_reflection(state: SOCAgentState):
     notes.append("Reflection: Bắt đầu quá trình đối soát chéo (Cross-verification).")
 
     ticket = T.ticket_from_state(state)          # B5
-    alert_block = f"{T.render_rule(ticket)}\n{T.render_alert_data(ticket)}"
+    # B6: Lớp 2 — khi bật spotlighting, phần dữ liệu log không tin cậy đi trong message riêng (bọc dấu
+    # phân cách ngẫu nhiên), giống Analyzer. Off/l1 giữ nguyên: dữ liệu nằm chung alert_block như cũ.
+    _spotlight = layer_enabled(2)
+    if _spotlight:
+        # B6.2: datamarking INLINE — khối dữ liệu log không tin cậy (bọc dấu phân cách ngẫu nhiên) nằm NGAY
+        # trong alert_block, không tách lượt "human" riêng (bản B6.1 tách riêng làm Llama 8B dễ nghe lệnh tiêm).
+        alert_block = f"{T.render_rule(ticket)}\n{T.render_event(ticket)}\n{T.spotlight_message(ticket)}"
+    else:
+        alert_block = f"{T.render_rule(ticket)}\n{T.render_alert_data(ticket)}"
     rag_context = state.get("rag_context", "")
     trust_score = state.get("context_trust_score", 0.0)
     
@@ -124,10 +149,17 @@ def node_reflection(state: SOCAgentState):
         return {"knowledge_conflict": False, "confidence_score": confidence, "investigation_notes": notes,
                 **_mark_llm_error(state, "Reflection: không khởi tạo được LLM")}   # B4.1
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", REFLECTION_PROMPT),
-        ("human", "Audit the verdict above. Return JSON.")
-    ])
+    if _spotlight:
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", REFLECTION_PROMPT),
+            ("human", "Audit the verdict above. Return JSON.")
+        ])
+        notes.append("Reflection [Lớp 2]: spotlighting BẬT — datamarking inline (dữ liệu log bọc dấu phân cách ngẫu nhiên trong [ALERT]).")
+    else:
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", REFLECTION_PROMPT),
+            ("human", "Audit the verdict above. Return JSON.")
+        ])
 
     chain = prompt | structured_llm
 
@@ -139,6 +171,7 @@ def node_reflection(state: SOCAgentState):
             "alert_block": alert_block,
             "raw_ai_verdict": json.dumps(raw_ai_verdict, ensure_ascii=False, indent=2)
         }
+        # B6.2: khối dữ liệu untrusted đã nằm INLINE trong alert_block (datamarking), không còn message riêng.
         result = None
         for _attempt in range(2):                 # B4.3d: Llama trả JSON rỗng → thử lại 1 lần
             result = chain.invoke(_inputs)
@@ -158,7 +191,13 @@ def node_reflection(state: SOCAgentState):
         knowledge_conflict = _llm_conflict or knowledge_conflict_forced
 
         # Nâng cấp chốt hạ: Clamp giá trị LLM sinh ra để đảm bảo luôn nằm trong [0.0, 1.0]
-        llm_adjusted_confidence = max(0.0, min(1.0, float(result.adjusted_confidence)))
+        # B6.1: Llama có thể bỏ sót/gõ nhầm trường → adjusted_confidence = None. Khi đó KHÔNG bịa số:
+        # giữ nguyên confidence gốc (coi như không điều chỉnh), thay vì để node sập sang Human Review.
+        if result.adjusted_confidence is None:
+            llm_adjusted_confidence = confidence
+            notes.append("Reflection: output thiếu 'adjusted_confidence' — giữ nguyên confidence gốc (không điều chỉnh).")
+        else:
+            llm_adjusted_confidence = max(0.0, min(1.0, float(result.adjusted_confidence)))
 
         # ==========================================
         # HARD-RULE KNOWLEDGE CONFLICT

@@ -9,6 +9,7 @@ class SOCAgentState(TypedDict):
     extracted_ioc: dict       # Các IOC bóc tách được (IP, Domain, Hash...)
     rag_context: str          # Tài liệu hướng dẫn từ Vector DB
     rag_docs: List[Dict[str, Any]]  # B4.3b: tài liệu đã đưa vào context (id, cách lấy, điểm) — chẩn đoán + Ngày 5
+    rag: dict                      # Ngày 5 (Lớp 5): khối toàn vẹn kho — context_ids, injected_in_context, injected_rejected
     context_trust_score: float # Điểm tin cậy của tài liệu (Chống RAG Poisoning)
 
     # ==========================================
@@ -82,3 +83,10 @@ class SOCAgentState(TypedDict):
     # Do core/ticket.py dựng sau Enricher: {"ticket_id", "version", "trusted": {...}, "untrusted": {...}}.
     # Analyzer + Reflection CHỈ đọc ticket (không đọc raw_log). `trusted` không chứa ký tự nào từ `fields`.
     ticket: dict
+    prefilter: dict          # ML prefilter verdict (ngan trusted cua ticket)
+
+    # ==========================================
+    # B10: CHUỖI ATT&CK CỦA SỰ CỐ + KHUYẾN NGHỊ GIẢM THIỂU (tất định, core/attack_kb.py)
+    # ==========================================
+    attack_chain: dict        # Correlator: tactic theo thứ tự, kỹ thuật, luật nâng mức (R1/R2) nếu có
+    mitigations: list         # Responder: mitigation ATT&CK (M-code) cho các kỹ thuật của sự cố

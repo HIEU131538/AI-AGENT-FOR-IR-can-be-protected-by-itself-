@@ -1,0 +1,24 @@
+# assets/prefilter_rules.yaml — Quy tắc LÀN LUẬT của prefilter (web + endpoint; mạng thì có thêm ML).
+# Nạp lại tự động khi file đổi (như inventory.yaml). TẤT ĐỊNH, không LLM. Sai file → fail-open (cho qua hết).
+#
+# 1) TIER 0 — nhiễu kỹ thuật. Chỉ DROP khi THỎA CẢ BA:
+#      - tên luật khớp một regex trong `noise_rule_regex`;
+#      - mức luật <= `noise_max_level` (mặc định low);
+#      - alert KHÔNG có mã ATT&CK (luật phát hiện tấn công luôn có mã; thứ không có mã là luật giám sát/nhiễu).
+#    Alert bị DROP vẫn ghi vào /prefilter/recent để kiểm tra sau.
+#
+# 2) GỘP TRÙNG (dedup) — hai tầng, áp cho MỌI bề mặt (web, endpoint, mạng):
+#      D1: cùng alert_id trong `dedup_id_ttl_s` giây  → bridge gửi lại khi hết hạn chờ; không phân tích lần hai.
+#      D2: NỘI DUNG GIỐNG HỆT (luật, mức luật, mã ATT&CK, bề mặt, nguồn, đích, cổng, host + toàn bộ `fields`) và thời điểm sự kiện
+#          cách nhau <= `dedup_window_s` giây, lại đến trong `dedup_id_ttl_s` giây thời gian thực.
+#    Với alert mạng, `fields` chứa đặc trưng luồng nên hai luồng KHÁC nhau không bị coi là trùng
+#    (ML vẫn chấm từng luồng); chỉ cùng một alert bắn lặp mới bị gộp.
+#    Bản trùng KHÔNG vào Agent nhưng được đếm (`repeat_count`) trên alert gốc.
+#    Tắt toàn bộ bằng biến môi trường PREFILTER_DEDUP=0.
+
+noise_rule_regex:
+  - '(?i)\b(health[ _-]?check|heartbeat|keep[ _-]?alive|metric[ _-]?report|asset[ _-]?sync)\b'
+noise_max_level: low
+
+dedup_window_s: 10
+dedup_id_ttl_s: 60

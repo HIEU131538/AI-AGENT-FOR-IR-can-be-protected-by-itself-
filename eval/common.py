@@ -51,6 +51,7 @@ ACTION_MAP = {
     "human_review": "review",
     "throttle": "block",             # bóp băng thông = một dạng ngăn chặn chủ động
     "block_ip": "block",
+    "block_pending": "block",   # Lớp 1: đề xuất chặn, chờ người duyệt — chấm theo cách (a): tính là "block"
     "network_block_full": "block",
     "block": "block",
 }

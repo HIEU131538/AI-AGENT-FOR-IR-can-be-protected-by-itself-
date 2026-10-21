@@ -1,0 +1,32 @@
+{
+  "alert_id": "scheduler__pinktryni__search__RMD55be00f6cf026c27b_at_1791020100_19746:1",
+  "rule_name": "AegisSOC - Suricata Malware or C2 Communication Alert",
+  "rule_level": "high",
+  "attack_ids": [
+    "T1071"
+  ],
+  "surface": "network",
+  "timestamp": "2026-10-03T09:33:00Z",
+  "src_ip": "192.168.10.128",
+  "dest_ip": "8.8.8.8",
+  "dest_port": 443,
+  "host": "sensor-net-01",
+  "fields": {
+    "alert.action": "allowed",
+    "alert.category": "AegisSOC Test",
+    "alert.gid": "1",
+    "alert.rev": "1",
+    "alert.severity": "1",
+    "alert.signature": "ET MALWARE AegisSOC C02 Test",
+    "alert.signature_id": "92020001",
+    "app_proto": "tls",
+    "event_type": "alert",
+    "flow_id": "92020001",
+    "in_iface": "eth1",
+    "proto": "TCP",
+    "signature": "ET MALWARE AegisSOC C02 Test",
+    "src_port": "49152",
+    "timestamp": "2026-10-03T16:33:00.000000+0700"
+  },
+  "summary": "AegisSOC - Suricata Malware or C2 Communication Alert | 192.168.10.128 -> 8.8.8.8:443 | host=sensor-net-01"
+}

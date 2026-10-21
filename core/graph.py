@@ -22,6 +22,7 @@ from agent.nodes.retriever import node_retriever
 from agent.nodes.analyzer import node_analyzer
 from agent.nodes.reflection import node_reflection
 from agent.nodes.responder import node_responder
+from core import attack_kb                         # B10: mitigation ATT&CK cũng kèm ở nhánh người duyệt
 
 # ==========================================
 # TRẠM HUMAN REVIEW & ĐỊNH TUYẾN
@@ -42,6 +43,7 @@ def _human_review_reasons(state) -> list:
 def node_human_review(state: SOCAgentState):
     print("\n[Trạm 5.5 - Human Review] 🛑 HỆ THỐNG TẠM DỪNG: CẦN SỰ PHÊ DUYỆT CỦA ADMIN!")
     reason = "; ".join(_human_review_reasons(state)) or "được yêu cầu người duyệt"
+    _mitigations, _mit_note = attack_kb.recommend(state)
     # B4.3a: chỉ trả ghi chú MỚI — investigation_notes cộng dồn bằng operator.add, trả lại cả danh
     # sách cũ (như trước) sẽ nhân đôi toàn bộ nhật ký. Không thực thi hành động nào ở nhánh này.
     return {
@@ -49,8 +51,9 @@ def node_human_review(state: SOCAgentState):
         "action_taken": "human_review",
         "response_reason": f"Chờ người duyệt: {reason}. Chưa thực thi hành động nào.",
         "final_response": "Pending Human Approval",
+        "mitigations": _mitigations,   # B10
         "investigation_notes": [f"System [Human-in-the-Loop]: Chuyển người duyệt — {reason}. "
-                                f"Chưa thực thi hành động nào."],
+                                f"Chưa thực thi hành động nào.", _mit_note],
     }
 
 def route_after_reflection(state: SOCAgentState) -> str:

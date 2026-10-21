@@ -1,0 +1,42 @@
+{
+  "proto": {
+    "tcp": 0,
+    "udp": 1,
+    "arp": 2,
+    "unas": 3,
+    "ospf": 4,
+    "sctp": 5,
+    "any": 6,
+    "igmp": 7,
+    "rsvp": 8,
+    "ipv6": 9,
+    "__other__": 10
+  },
+  "service": {
+    "none": 0,
+    "http": 1,
+    "dns": 2,
+    "smtp": 3,
+    "ftp-data": 4,
+    "ftp": 5,
+    "ssh": 6,
+    "pop3": 7,
+    "snmp": 8,
+    "ssl": 9,
+    "dhcp": 10,
+    "irc": 11,
+    "radius": 12,
+    "__other__": 13
+  },
+  "state": {
+    "fin": 0,
+    "int": 1,
+    "con": 2,
+    "req": 3,
+    "rst": 4,
+    "eco": 5,
+    "par": 6,
+    "no": 7,
+    "__other__": 8
+  }
+}

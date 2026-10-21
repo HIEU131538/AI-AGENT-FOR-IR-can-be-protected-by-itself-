@@ -1,0 +1,40 @@
+{
+  "alert_id": "scheduler__pinktryni__search__RMD5316ee647002d3378_at_1791101700_25573:1",
+  "rule_name": "Suspicious DNS Query with B64 Encoded String",
+  "rule_level": "medium",
+  "attack_ids": [
+    "T1048.003",
+    "T1071.004"
+  ],
+  "surface": "network",
+  "timestamp": "2026-10-04T08:14:15Z",
+  "src_ip": "192.168.46.166",
+  "dest_ip": "1.1.1.1",
+  "dest_port": null,
+  "host": "sensor-net-01",
+  "fields": {
+    "dns.additionals{}.opt{}.code": "10",
+    "dns.additionals{}.opt{}.data": "ed52357ff03ac68d",
+    "dns.additionals{}.rrtype": "OPT",
+    "dns.additionals{}.ttl": "0",
+    "dns.flags": "120",
+    "dns.id": "54188",
+    "dns.opcode": "0",
+    "dns.queries{}.rrtype": "A",
+    "dns.rcode": "NOERROR",
+    "dns.rd": "true",
+    "dns.tx_id": "0",
+    "dns.type": "request",
+    "dns.version": "3",
+    "dns_query": "test==.example.com",
+    "event_type": "dns",
+    "flow_id": "2189194225925752",
+    "in_iface": "eth0",
+    "ip_v": "4",
+    "pkt_src": "wire/pcap",
+    "proto": "UDP",
+    "src_port": "40884",
+    "timestamp": "2026-10-04T04:14:15.706319-0400"
+  },
+  "summary": "Suspicious DNS Query with B64 Encoded String | 192.168.46.166 -> 1.1.1.1:None | host=sensor-net-01"
+}

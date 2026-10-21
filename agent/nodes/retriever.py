@@ -66,10 +66,16 @@ def node_retriever(state: SOCAgentState):
     notes = [f"Retriever: truy vấn = '{query[:90]}' · luật = {rule_name or '-'} · ATT&CK = {attack_ids or '-'}"]
 
     rag_context, rag_docs, trust = "No matching reference documents.", [], NO_CONTEXT_TRUST
+    rag_block = {}
     if retriever_instance:
         try:
             res = retriever_instance.retrieve(query, rule_name=rule_name, attack_ids=attack_ids, k_related=2)
             rag_context, rag_docs = res["context"], res["docs"]
+            rag_block = res.get("rag") or {}
+            if rag_block.get("injected_in_context"):
+                notes.append(f"Retriever [Lớp 5]: CẢNH BÁO — tài liệu lạ LỌT vào context: {rag_block['injected_in_context']}")
+            elif rag_block.get("injected_rejected"):
+                notes.append(f"Retriever [Lớp 5]: đã LOẠI tài liệu lạ (không có trong manifest): {rag_block['injected_rejected']}")
             if rag_docs:
                 trust = max(d.get("trust_score", 0.0) for d in rag_docs)
             how = ", ".join(f"{d['how']}:{d['id']}" for d in rag_docs) or "không có"
@@ -83,6 +89,7 @@ def node_retriever(state: SOCAgentState):
     return {
         "rag_context": rag_context,
         "rag_docs": rag_docs,
+        "rag": rag_block,
         "context_trust_score": trust,
         "investigation_notes": notes,
     }

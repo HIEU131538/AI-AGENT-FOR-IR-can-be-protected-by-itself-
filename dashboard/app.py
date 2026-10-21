@@ -1,1080 +1,1066 @@
-import streamlit as st
-import requests
-import json
-import time
-import os
-import plotly.express as px
+"""dashboard/app.py — AegisSOC Command Center (Streamlit).
 
-API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
-st.set_page_config(
-    page_title="KMA SOC Command Center",
-    page_icon="🛡️",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+Bảng điều khiển cho buổi demo và vận hành AegisSOC:
+  • Theo dõi HAI bản Agent cùng lúc: full (bật Lớp 1, 2, 4, 5) và off (không phòng thủ) — để trình diễn off ‖ full.
+  • Luồng cảnh báo từ Splunk: làn lọc trước (prefilter ML / làn luật) → Agent → hành động.
+  • Sự cố đã gộp (Correlator) và chuỗi ATT&CK của từng sự cố.
+  • Điều tra một alert: ticket hai ngăn (trusted / untrusted), phán quyết so với mức luật, phòng thủ đã kích hoạt,
+    khối toàn vẹn RAG, audit trail.
+  • Hàng chờ duyệt (Lớp 1 — Rule of Two): người duyệt chốt đề xuất BLOCK_PENDING. SOAR LUÔN SIMULATION.
+  • Phòng thủ & toàn vẹn: trạng thái các lớp, thống kê prefilter, nhật ký toàn vẹn kho RAG.
+  • Phát lại alert (dự phòng khi lab/Splunk trục trặc).
+
+An toàn hiển thị: mọi giá trị lấy từ alert (có thể do kẻ tấn công kiểm soát) đều được escape trước khi chèn vào HTML,
+trường gốc `fields` chỉ hiển thị bằng st.json/st.code (không render HTML).
+
+Chạy:  streamlit run dashboard/app.py
+Biến môi trường (đọc từ .env nếu có; dashboard KHÔNG in giá trị token):
+  API_URL_FULL (mặc định http://127.0.0.1:8000) · API_URL_OFF (mặc định http://127.0.0.1:8010)
+  AGENT_TOKEN (gửi alert phát lại) · AGENT_INTERNAL_TOKEN (duyệt đề xuất, xem nhật ký toàn vẹn ở bản full)
+"""
+from __future__ import annotations
+
+import html
+import json
+import os
+import re
+import time
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+import pandas as pd
+import requests
+import streamlit as st
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
+ROOT = Path(__file__).resolve().parent.parent
+try:   # thứ tự tactic theo ma trận ATT&CK Enterprise (chỉ đọc dữ liệu tất định, không gọi LLM)
+    import sys as _sys
+    if str(ROOT) not in _sys.path:
+        _sys.path.insert(0, str(ROOT))
+    from core import attack_kb as _K
+    TACTIC_ORDER = {t["name"]: i for i, t in enumerate(_K._kb().get("tactics") or [])}
+except Exception:
+    TACTIC_ORDER = {}
+AGENTS = {
+    "full": os.getenv("API_URL_FULL", os.getenv("API_URL", "http://127.0.0.1:8000")).rstrip("/"),
+    "off": os.getenv("API_URL_OFF", "http://127.0.0.1:8010").rstrip("/"),
+}
+AGENT_TOKEN = os.getenv("AGENT_TOKEN", "")
+INTERNAL_TOKEN = os.getenv("AGENT_INTERNAL_TOKEN", "")
+
+LAYER_INFO = {
+    1: ("Lớp 1", "Rule of Two", "Lệnh chặn không tự thực thi — chờ người duyệt"),
+    2: ("Lớp 2", "Spotlighting", "Dữ liệu alert được datamarking trong prompt"),
+    4: ("Lớp 4", "Egress & Sanitizer", "Danh sách trắng gọi ra ngoài, kiểm lệnh SOAR, khoá /internal"),
+    5: ("Lớp 5", "Manifest HMAC", "Chỉ dùng tài liệu RAG đã ký + giám sát toàn vẹn kho"),
+}
+DECISION_LABEL = {
+    "keep_rule_level": ("= Giữ mức luật", "#8b949e"),
+    "upgrade_one": ("↑ Nâng 1 mức", "#f85149"),
+    "downgrade_one": ("↓ Hạ 1 mức", "#d29922"),
+    "downgrade_benign": ("↓↓ Hạ về lành tính", "#3fb950"),
+}
+SEV_COLORS = {"CRITICAL": "#f85149", "HIGH": "#e3904d", "MEDIUM": "#d29922", "LOW": "#3fb950"}
+SEV_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+ACTION_LABEL = {
+    "BLOCK_PENDING": ("CHỜ DUYỆT", "#d29922"),
+    "BLOCK_IP": ("CHẶN IP", "#f85149"),
+    "NETWORK_BLOCK_FULL": ("CÔ LẬP MẠNG", "#f85149"),
+    "ALERT_OPERATOR": ("BÁO ANALYST", "#58a6ff"),
+    "MONITOR": ("THEO DÕI", "#58a6ff"),
+    "IGNORE": ("BỎ QUA", "#3fb950"),
+    "NONE": ("—", "#484f58"),
+}
+PF_COLORS = {"DROP": "#3fb950", "DUP": "#8b949e", "PASS_UNCERTAIN": "#d29922", "PASS": "#58a6ff"}
+
+st.set_page_config(page_title="AegisSOC Command Center", page_icon="🛡️", layout="wide",
+                   initial_sidebar_state="expanded")
 
 # ═══════════════════════════════════════════════════════════════════
 # THEME
 # ═══════════════════════════════════════════════════════════════════
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
-
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-
-.stApp {
-    background-color: #0b0f1a;
-    background-image:
-        radial-gradient(ellipse at 15% 60%, rgba(88,166,255,0.03) 0%, transparent 55%),
-        radial-gradient(ellipse at 85% 10%, rgba(248,81,73,0.025) 0%, transparent 55%);
-}
-
-.block-container { padding-top: 1.2rem !important; }
-
-[data-testid="stSidebar"] {
-    background-color: #0d1117 !important;
-    border-right: 1px solid rgba(255,255,255,0.05);
-}
-[data-testid="stSidebar"] .stMarkdown p {
-    color: #484f58;
-    font-size: 0.75rem;
-    font-family: 'JetBrains Mono', monospace;
-}
-
-h1, h2, h3 {
-    font-family: 'Inter', sans-serif !important;
-    font-weight: 600 !important;
-    color: #e6edf3 !important;
-}
-
-[data-testid="stMetric"] {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 8px;
-    padding: 12px 16px;
-}
-[data-testid="stMetricLabel"] {
-    color: #484f58 !important;
-    font-size: 0.62rem !important;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-family: 'JetBrains Mono', monospace !important;
-}
-[data-testid="stMetricValue"] {
-    color: #e6edf3 !important;
-    font-size: 1.55rem !important;
-    font-weight: 600 !important;
-    font-family: 'JetBrains Mono', monospace !important;
-}
-
-.stButton > button {
-    background: transparent !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    color: #8b949e !important;
-    border-radius: 6px !important;
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.7rem !important;
-    padding: 5px 14px !important;
-    transition: all 0.15s ease !important;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-.stButton > button:hover {
-    border-color: rgba(88,166,255,0.4) !important;
-    color: #79c0ff !important;
-    background: rgba(88,166,255,0.06) !important;
-}
-.stButton > button[kind="primary"] {
-    background: rgba(88,166,255,0.1) !important;
-    border-color: rgba(88,166,255,0.4) !important;
-    color: #79c0ff !important;
-}
-.stButton > button[kind="primary"]:hover {
-    background: rgba(88,166,255,0.18) !important;
-}
-
-.stTextArea textarea {
-    background: rgba(255,255,255,0.02) !important;
-    border: 1px solid rgba(255,255,255,0.07) !important;
-    color: #8b949e !important;
-    border-radius: 8px !important;
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.74rem !important;
-    line-height: 1.65 !important;
-}
-.stTextArea textarea:focus {
-    border-color: rgba(88,166,255,0.35) !important;
-    box-shadow: 0 0 0 1px rgba(88,166,255,0.1) !important;
-}
-
-.streamlit-expanderHeader {
-    background: rgba(255,255,255,0.02) !important;
-    border: 1px solid rgba(255,255,255,0.06) !important;
-    border-radius: 6px !important;
-    color: #484f58 !important;
-    font-size: 0.68rem !important;
-    font-family: 'JetBrains Mono', monospace !important;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-}
-.streamlit-expanderContent {
-    border: 1px solid rgba(255,255,255,0.05) !important;
-    border-top: none !important;
-    background: rgba(255,255,255,0.01) !important;
-}
-
-.stTabs [data-baseweb="tab-list"] {
-    background: transparent !important;
-    border-bottom: 1px solid rgba(255,255,255,0.07) !important;
-    gap: 0 !important;
-}
-.stTabs [data-baseweb="tab"] {
-    background: transparent !important;
-    border: none !important;
-    color: #484f58 !important;
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.7rem !important;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    padding: 8px 22px !important;
-}
-.stTabs [aria-selected="true"] {
-    color: #79c0ff !important;
-    border-bottom: 2px solid #58a6ff !important;
-    background: transparent !important;
-}
-.stTabs [data-baseweb="tab-panel"] { padding-top: 18px !important; }
-
-.stAlert { border-radius: 6px !important; border-left-width: 3px !important; }
-.stWarning  { background: rgba(210,153,34,0.06) !important; border-left-color: #d29922 !important; color: #e3b341 !important; }
-.stSuccess  { background: rgba(63,185,80,0.06)  !important; border-left-color: #3fb950 !important; color: #56d364 !important; }
-.stError    { background: rgba(248,81,73,0.06)  !important; border-left-color: #f85149 !important; color: #ff7b72 !important; }
-.stInfo     { background: rgba(88,166,255,0.06) !important; border-left-color: #58a6ff !important; color: #79c0ff !important; }
-
-[data-testid="stVerticalBlockBorderWrapper"] {
-    border-color: rgba(255,255,255,0.07) !important;
-    border-radius: 8px !important;
-    background: rgba(255,255,255,0.015) !important;
-}
-
-[data-testid="stToggle"] label {
-    color: #484f58 !important;
-    font-size: 0.74rem !important;
-    font-family: 'JetBrains Mono', monospace !important;
-}
-
-.stCheckbox label {
-    color: #8b949e !important;
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.74rem !important;
-}
-
-.stCaption  { color: #30363d !important; font-size: 0.66rem !important; font-family: 'JetBrains Mono', monospace !important; }
-.stSpinner > div { border-top-color: #58a6ff !important; }
-
-hr { border-color: rgba(255,255,255,0.05) !important; margin: 16px 0 !important; }
-
-.js-plotly-plot .plotly .bg { fill: transparent !important; }
+.stApp { background-color: #0b0f1a; }
+[data-testid="stHeader"] { background: transparent !important; }
+.block-container { padding-top: 1.1rem !important; }
+[data-testid="stSidebar"] { background-color: #0d1117 !important; border-right: 1px solid rgba(255,255,255,0.05); }
+h1, h2, h3 { color: #e6edf3 !important; font-weight: 600 !important; }
+[data-testid="stMetric"] { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px; padding: 10px 14px; }
+[data-testid="stMetricLabel"] { color: #6e7681 !important; font-size: 0.62rem !important; text-transform: uppercase;
+    letter-spacing: 0.08em; font-family: 'JetBrains Mono', monospace !important; }
+[data-testid="stMetricValue"] { color: #e6edf3 !important; font-size: 1.45rem !important;
+    font-family: 'JetBrains Mono', monospace !important; }
+.stTabs [data-baseweb="tab-list"] { border-bottom: 1px solid rgba(255,255,255,0.07) !important; gap: 0 !important; }
+.stTabs [data-baseweb="tab"] { color: #6e7681 !important; font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.72rem !important; letter-spacing: 0.05em; padding: 8px 18px !important; }
+.stTabs [aria-selected="true"] { color: #79c0ff !important; border-bottom: 2px solid #58a6ff !important; }
+.stButton > button { border-radius: 6px !important; font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.72rem !important; }
+[data-testid="stVerticalBlockBorderWrapper"] { border-color: rgba(255,255,255,0.07) !important;
+    border-radius: 8px !important; background: rgba(255,255,255,0.015) !important; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+.lbl { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: #6e7681; text-transform: uppercase;
+    letter-spacing: 0.12em; margin: 4px 0 8px 0; }
+.chip { display: inline-block; padding: 1px 9px; border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em; margin: 2px 3px 2px 0; }
+.kv { font-family: 'JetBrains Mono', monospace; font-size: 0.74rem; color: #c9d1d9; line-height: 1.9; }
+.kv span.k { color: #6e7681; display: inline-block; min-width: 128px; }
+.chain { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; }
+.chain .step { border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid #58a6ff; border-radius: 0 6px 6px 0;
+    padding: 6px 10px; background: rgba(255,255,255,0.02); min-width: 150px; }
+.chain .arrow { color: #30363d; align-self: center; font-size: 1.1rem; }
+.pipe { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 4px 0 10px 0; }
+.pipe .n { font-family: 'JetBrains Mono', monospace; font-size: 0.64rem; padding: 3px 9px; border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.1); color: #c9d1d9; }
+.pipe .a { color: #30363d; font-size: 0.8rem; }
+.flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; margin: 2px 0 12px 0; }
+.flow .s { border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 5px 10px;
+    background: rgba(255,255,255,0.02); }
+.flow .s .t { font-family: 'JetBrains Mono', monospace; font-size: 0.56rem; color: #6e7681;
+    text-transform: uppercase; letter-spacing: 0.08em; }
+.flow .a { color: #484f58; align-self: center; font-size: 0.95rem; }
+.lane { display: grid; gap: 8px; margin: 8px 0 6px 0; }
+.lane .col { border-top: 2px solid #d2a8ff; background: rgba(210,168,255,0.03); border-radius: 0 0 6px 6px;
+    padding: 6px; }
+.lane .hd { font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; color: #d2a8ff; margin-bottom: 6px; }
+.lane .ev { border: 1px solid rgba(255,255,255,0.07); border-left: 3px solid #58a6ff; border-radius: 0 5px 5px 0;
+    padding: 4px 7px; margin-bottom: 5px; background: rgba(255,255,255,0.02); }
+.node { border: 1px solid rgba(255,255,255,0.07); border-left: 3px solid #58a6ff; border-radius: 0 6px 6px 0;
+    padding: 6px 12px; margin-bottom: 6px; background: rgba(255,255,255,0.015); }
+.node .h { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: #e6edf3; font-weight: 600; }
+.node .ty { font-family: 'JetBrains Mono', monospace; font-size: 0.58rem; color: #6e7681; margin-left: 8px; }
+.node .ln { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: #c9d1d9; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-word; }
+.llm { border: 1px solid rgba(227,144,77,0.35); border-radius: 6px; padding: 8px 12px; background: rgba(227,144,77,0.04); }
+.llm .q { font-size: 0.8rem; color: #e6edf3; line-height: 1.6; }
 </style>
 """, unsafe_allow_html=True)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# HTTP
+# ═══════════════════════════════════════════════════════════════════
+def _hdr(internal: bool = False, agent: bool = False) -> dict:
+    h = {}
+    if internal and INTERNAL_TOKEN:
+        h["X-Internal-Token"] = INTERNAL_TOKEN
+    if agent and AGENT_TOKEN:
+        h["Authorization"] = f"Bearer {AGENT_TOKEN}"
+    return h
+
+
+def api_get(agent: str, path: str, internal: bool = False, timeout: float = 4.0):
+    try:
+        r = requests.get(AGENTS[agent] + path, headers=_hdr(internal=internal), timeout=timeout)
+        if r.status_code == 200:
+            return r.json(), None
+        return None, f"HTTP {r.status_code}"
+    except Exception as e:
+        return None, type(e).__name__
+
+
+def api_post(agent: str, path: str, body=None, internal=False, agent_tok=False, timeout: float = 10.0):
+    try:
+        r = requests.post(AGENTS[agent] + path, json=body if body is not None else {},
+                          headers=_hdr(internal=internal, agent=agent_tok), timeout=timeout)
+        try:
+            data = r.json()
+        except ValueError:
+            data = {"detail": r.text[:300]}
+        return r.status_code, data
+    except Exception as e:
+        return None, {"detail": type(e).__name__}
+
+
+def load_agent(agent: str) -> dict:
+    health, err = api_get(agent, "/health", timeout=3)
+    if health is None:
+        return {"online": False, "error": err, "health": {}, "recent": [], "prefilter": {}, "decisions": []}
+    recent, _ = api_get(agent, "/recent")
+    pf, _ = api_get(agent, "/prefilter/recent?limit=200")
+    dec, _ = api_get(agent, "/soar/decisions?limit=200")
+    return {"online": True, "health": health,
+            "recent": (recent or {}).get("results", []),
+            "prefilter": pf or {},            # None nếu Agent chạy bản API cũ (chưa có endpoint)
+            "decisions": (dec or {}).get("decisions", [])}
+
 
 # ═══════════════════════════════════════════════════════════════════
 # HELPERS
 # ═══════════════════════════════════════════════════════════════════
-SEV_COLORS = {"CRITICAL": "#f85149", "HIGH": "#e3904d", "MEDIUM": "#d29922", "LOW": "#3fb950"}
-SEV_BG     = {
-    "CRITICAL": "rgba(248,81,73,0.1)",
-    "HIGH":     "rgba(227,144,77,0.1)",
-    "MEDIUM":   "rgba(210,153,34,0.1)",
-    "LOW":      "rgba(63,185,80,0.1)",
-}
-
-def sev_color(sev: str) -> str:
-    return SEV_COLORS.get(str(sev).upper(), "#8b949e")
-
-def sev_bg(sev: str) -> str:
-    return SEV_BG.get(str(sev).upper(), "rgba(139,148,158,0.1)")
-
-def badge(sev: str) -> str:
-    s = str(sev).upper()
-    c, b = sev_color(s), sev_bg(s)
-    return (f"<span style='display:inline-block; padding:1px 10px; border-radius:4px; "
-            f"border:1px solid {c}; background:{b}; font-family:JetBrains Mono,monospace; "
-            f"font-size:0.68rem; font-weight:600; color:{c}; letter-spacing:0.06em;'>{s}</span>")
-
-def sec_label(text: str):
-    st.markdown(
-        f"<div style='font-family:JetBrains Mono,monospace; font-size:0.6rem; color:#30363d; "
-        f"text-transform:uppercase; letter-spacing:0.15em; margin-bottom:10px;'>◈ {text}</div>",
-        unsafe_allow_html=True,
-    )
-
-def render_timeline(timeline: list):
-    if not timeline:
-        st.markdown(
-            "<div style='font-family:JetBrains Mono,monospace; font-size:0.72rem; color:#30363d; padding:10px 0;'>"
-            "No events recorded yet.</div>",
-            unsafe_allow_html=True,
-        )
-        return
-
-    html = "<div>"
-    for i, ev in enumerate(timeline):
-        ev_sev   = str(ev.get("severity", "unknown")).upper()
-        c        = sev_color(ev_sev)
-        stage    = str(ev.get("attack_chain_stage", "unknown")).upper()
-        ip       = ev.get("source_ip", "N/A")
-        ev_type  = ev.get("event_type", "")
-        ts_raw   = ev.get("event_timestamp", "")
-        ts       = ts_raw[:19] if ts_raw else "—"
-        is_last  = (i == len(timeline) - 1)
-        border_w = "3px" if is_last else "2px"
-        opacity  = "1" if is_last else "0.65"
-        bg_alpha = "0.025" if is_last else "0.01"
-        border_a = "0.08" if is_last else "0.04"
-        # Single-line strings — no newlines in HTML to avoid Streamlit markdown
-        # treating indented lines as code blocks
-        current_chip = (
-            "<span style='font-family:JetBrains Mono,monospace;font-size:0.58rem;color:#484f58;"
-            "background:rgba(255,255,255,0.05);border-radius:3px;padding:1px 7px;margin-left:8px'>CURRENT</span>"
-            if is_last else ""
-        )
-        sep = "<span style='color:#30363d'>·</span>"
-        sub_html = sep.join(f"<span>{p}</span>" for p in [ip, ev_type, ts] if p)
-
-        # All CSS on one line — multi-line style='...' breaks Streamlit's HTML renderer
-        card_style = (
-            f"border-left:{border_w} solid {c};"
-            f"border-top:1px solid rgba(255,255,255,{border_a});"
-            f"border-right:1px solid rgba(255,255,255,{border_a});"
-            f"border-bottom:1px solid rgba(255,255,255,{border_a});"
-            f"border-radius:0 6px 6px 0;padding:8px 14px;margin:3px 0;"
-            f"background:rgba(255,255,255,{bg_alpha});opacity:{opacity}"
-        )
-        row1 = (
-            f"<div style='display:flex;align-items:center'>"
-            f"<span style='font-family:JetBrains Mono,monospace;font-size:0.7rem;color:{c};font-weight:600'>{stage}</span>"
-            f"{current_chip}"
-            f"<span style='margin-left:auto;font-family:JetBrains Mono,monospace;font-size:0.65rem;color:{c};opacity:0.75'>{ev_sev}</span>"
-            f"</div>"
-        )
-        row2 = (
-            f"<div style='font-family:JetBrains Mono,monospace;font-size:0.61rem;color:#484f58;margin-top:4px;display:flex;gap:10px;flex-wrap:wrap'>"
-            f"{sub_html}</div>"
-        )
-        html += f"<div style='{card_style}'>{row1}{row2}</div>"
-
-        if not is_last:
-            html += "<div style='margin-left:12px;color:#21262d;font-size:13px;line-height:1.1'>│</div>"
-
-    html += "</div>"
-    st.markdown(html, unsafe_allow_html=True)
+def esc(v) -> str:
+    return html.escape(str(v if v is not None else ""), quote=True)
 
 
-def render_verdict(result: dict):
-    sev        = result.get("severity", "LOW")
-    c          = sev_color(sev)
-    b          = sev_bg(sev)
-    agent_mode = result.get("agent_mode", "AUTONOMOUS")
-    notes      = result.get("investigation_notes", [])
-    action     = result.get("action_taken", "NONE")
+def chip(text, color="#8b949e", bg=None) -> str:
+    bg = bg or "rgba(255,255,255,0.03)"
+    return f"<span class='chip' style='color:{color};border:1px solid {color};background:{bg}'>{esc(text)}</span>"
 
-    # Execution flow banner
-    if agent_mode == "AUTONOMOUS":
-        st.success("Extractor → Correlator → Retriever → Analyzer → Reflection → **Auto-Responder** ✓")
+
+def sev_chip(sev) -> str:
+    s = str(sev or "?").upper()
+    return chip(s, SEV_COLORS.get(s, "#8b949e"))
+
+
+def action_chip(action) -> str:
+    a = str(action or "NONE").upper()
+    label, color = ACTION_LABEL.get(a, (a, "#8b949e"))
+    return chip(label, color)
+
+
+def lbl(text: str):
+    st.markdown(f"<div class='lbl'>◈ {esc(text)}</div>", unsafe_allow_html=True)
+
+
+def trusted(e: dict) -> dict:
+    return ((e.get("ticket") or {}).get("trusted")) or {}
+
+
+def rule_of(e: dict) -> dict:
+    return trusted(e).get("rule") or {}
+
+
+def rule_name(e: dict) -> str:
+    return rule_of(e).get("name") or e.get("event_type") or "?"
+
+
+def hhmmss(ts: str) -> str:
+    return str(ts or "")[11:19] or "—"
+
+
+def entity_line(t: dict) -> str:
+    if t.get("src_ip") or t.get("dest_ip"):
+        port = f":{t['dest_port']}" if t.get("dest_port") else ""
+        return f"{t.get('src_ip') or '?'} → {t.get('dest_ip') or '?'}{port}"
+    return t.get("host") or "—"
+
+
+def layers_fired(notes: list) -> dict:
+    """Lớp nào đã thực sự can thiệp ở alert này (đọc từ audit trail)."""
+    out = {}
+    for n in notes or []:
+        for m in re.finditer(r"Lớp (\d)", n):
+            k = int(m.group(1))
+            out.setdefault(k, n)
+    return out
+
+
+def pending_undecided(e: dict) -> bool:
+    return str(e.get("action_taken", "")).upper() == "BLOCK_PENDING" and not e.get("human_decision")
+
+
+def render_attack_block(e: dict):
+    """B10: chuỗi tactic ATT&CK của sự cố, luật nâng mức (nếu có) và mitigation ATT&CK (M-code)."""
+    ch = e.get("attack_chain") or {}
+    names = ch.get("tactic_names") or []
+    if names:
+        st.markdown("<div class='kv'><span class='k'>Chuỗi tactic</span>"
+                    + "<span style='color:#30363d'> › </span>".join(chip(n, "#d2a8ff") for n in names)
+                    + f" <span style='color:#6e7681'>({ch.get('distinct_tactics', len(names))} tactic)</span></div>",
+                    unsafe_allow_html=True)
+    esc_ = (e.get("raw_ai_verdict") or {}).get("attack_escalation") or ch.get("escalation")
+    if esc_:
+        frm = esc_.get("from")
+        st.markdown(f"<div class='kv'><span class='k'>Nâng mức ATT&amp;CK</span>"
+                    f"{chip(esc_.get('rule', '?'), '#f85149')} "
+                    + (f"{esc(str(frm).upper())} → " if frm else "")
+                    + f"{esc(str(esc_.get('to') or esc_.get('floor', '')).upper())} — {esc(esc_.get('why', ''))}</div>",
+                    unsafe_allow_html=True)
+    wv_ = (e.get("raw_ai_verdict") or {}).get("attack_escalation_waived") or ch.get("escalation_waived")
+    if wv_ and not esc_:
+        st.markdown(f"<div class='kv'><span class='k'>Bỏ qua nâng mức</span>"
+                    f"{chip(wv_.get('rule', '?'), '#d29922')} "
+                    f"{esc(str(wv_.get('would_floor') or '').upper())} không áp dụng — "
+                    f"{esc(wv_.get('why') or 'mẫu: ' + ', '.join(wv_.get('patterns') or []))}</div>",
+                    unsafe_allow_html=True)
+    mits = e.get("mitigations") or []
+    if mits:
+        st.markdown("<div class='kv'><span class='k'>Mitigation ATT&amp;CK</span></div>"
+                    + "".join(f"<div class='kv' style='margin-left:12px'>{chip(m.get('id'), '#3fb950')} "
+                              f"{esc(m.get('name'))} <span style='color:#6e7681'>"
+                              f"({esc(', '.join(m.get('techniques') or []))})</span></div>" for m in mits),
+                    unsafe_allow_html=True)
+    if not (names or esc_ or mits or wv_):
+        st.caption("Alert không có mã ATT&CK (hoặc Agent chạy bản chưa có B10).")
+
+
+# ── Đọc audit trail → quy trình xử lý & chuỗi quyết định ───────────────────────
+NODE_META = [   # (khoá trong ghi chú, tên hiển thị, cơ chế, màu)
+    ("Prefilter", "① Lọc trước (prefilter)", "tất định / học máy", "#58a6ff"),
+    ("Extractor", "② Extractor — trích dấu hiệu", "tất định", "#8b949e"),
+    ("Correlator", "③ Correlator — gộp sự cố · tactic ATT&CK · R1/R2", "tất định", "#d2a8ff"),
+    ("Enricher", "④ Enricher — tài sản · tình báo · lịch sử", "tất định", "#8b949e"),
+    ("Retriever", "⑤ Retriever — tri thức RAG", "tất định", "#8b949e"),
+    ("Analyzer", "⑥ Analyzer — LLM suy luận, mã tất định chốt mức", "LLM + tất định", "#e3904d"),
+    ("Reflection", "⑦ Reflection — kiểm toán chéo", "LLM", "#e3904d"),
+    ("Responder", "⑧ Responder — ma trận ứng phó · Rule of Two", "tất định", "#f85149"),
+    ("Khác", "Ghi đè tất định khác", "tất định", "#8b949e"),
+]
+_NODE_RE = re.compile(r"^\s*\[?(Extractor|Correlator|Enricher|Ticket|Retriever|Analyzer|Reflection|Responder|Human|HITL)\b")
+_TACTIC_RE = re.compile(r"Correlator \[ATT&CK\]: [^→\n]*→ tactic (.+?) \((TA\d{4}|\?)\)")
+_PROPOSED_RE = re.compile(r"'(BLOCK_IP|NETWORK_BLOCK_FULL)'")
+_HOW_RE = re.compile(r"Analyzer \[Quyết định\]: (.+)")
+
+
+def group_notes(notes: list) -> dict:
+    out: dict = {}
+    for n in notes or []:
+        m = _NODE_RE.match(str(n))
+        k = m.group(1) if m else "Khác"
+        k = {"Ticket": "Enricher", "Human": "Responder", "HITL": "Responder"}.get(k, k)
+        out.setdefault(k, []).append(str(n))
+    return out
+
+
+def event_tactic(e: dict):
+    """(tên tactic, mã TA) của alert — đọc từ ghi chú Correlator (tất định)."""
+    for n in e.get("investigation_notes") or []:
+        m = _TACTIC_RE.search(str(n))
+        if m:
+            return m.group(1), (m.group(2) if m.group(2) != "?" else "")
+    return None, ""
+
+
+def escalation_of(e: dict):
+    return (e.get("raw_ai_verdict") or {}).get("attack_escalation")
+
+
+def proposed_of(e: dict) -> str:
+    m = _PROPOSED_RE.search(" ".join(e.get("investigation_notes") or []))
+    return m.group(1) if m else str(e.get("action_taken") or "").upper()
+
+
+def effective_action(proposed: str, ip: str, host: str) -> str:
+    """Hành động THỰC SỰ sẽ làm: alert endpoint không có IP nguồn → cô lập máy, không phải chặn IP."""
+    full = str(proposed).upper() == "NETWORK_BLOCK_FULL"
+    if ip:
+        return f"{'Chặn toàn phần' if full else 'Chặn'} IP {ip}"
+    return f"Cô lập máy {host or '?'}" + (" (toàn phần)" if full else "")
+
+
+def decision_flow_html(e: dict) -> str:
+    """Chuỗi quyết định: mức luật → LLM chọn → bảng tất định → luật ATT&CK → ma trận ứng phó → Rule of Two → người duyệt."""
+    v = e.get("raw_ai_verdict") or {}
+    rl = str(rule_of(e).get("level") or "?").upper()
+    final = str(e.get("severity", "?")).upper()
+    dec_label, dec_color = DECISION_LABEL.get(v.get("decision"), (v.get("decision") or "—", "#8b949e"))
+    esc_ = escalation_of(e)
+    wv_ = v.get("attack_escalation_waived") or (e.get("attack_chain") or {}).get("escalation_waived")
+    after_table = str(esc_.get("from") if esc_ else final).upper()
+    steps = [("Mức luật Splunk", sev_chip(rl)),
+             ("LLM chọn", chip(dec_label, dec_color)
+              + (f"<span class='mono' style='font-size:0.6rem;color:#6e7681'> tự ước lượng: "
+                 f"{esc(str(v.get('severity') or '?').upper())}</span>" if v.get("severity") else "")),
+             ("Bảng tất định", sev_chip(after_table))]
+    if esc_:
+        steps.append((f"ATT&amp;CK {esc(esc_.get('rule'))} (sàn)", sev_chip(str(esc_.get("to")).upper())))
+    elif wv_:
+        steps.append(("Allowlist ngữ cảnh", chip(f"bỏ qua {wv_.get('rule')}", "#d29922")))
+    act = str(e.get("action_taken") or "NONE").upper()
+    prop = proposed_of(e)
+    t = trusted(e)
+    ev = float(e.get("evidence_strength") or 0)
+    if act == "BLOCK_PENDING":
+        steps.append((f"Ma trận ứng phó · evidence {ev:.2f}", chip(effective_action(prop, t.get("src_ip"), t.get("host")), "#f85149")))
+        steps.append(("Rule of Two", action_chip("BLOCK_PENDING")))
+        hd = e.get("human_decision")
+        if hd:
+            steps.append((f"Người duyệt · {esc(hd.get('operator'))}",
+                          chip("ĐÃ DUYỆT · MÔ PHỎNG" if hd.get("decision") == "approve" else "TỪ CHỐI",
+                               "#3fb950" if hd.get("decision") == "approve" else "#8b949e")))
     else:
-        st.error("Pipeline flagged for **HUMAN REVIEW** before responding.")
+        steps.append((f"Ma trận ứng phó · evidence {ev:.2f}", action_chip(act)))
+    return ("<div class='flow'>" + "<div class='a'>➜</div>".join(
+        f"<div class='s'><div class='t'>{lab}</div>{val}</div>" for lab, val in steps) + "</div>")
 
-    # Attack indicator warning (pulled from Extractor notes)
-    attack_notes = [n for n in notes if "CẢNH BÁO ĐỎ" in n]
-    if attack_notes:
-        indicators = []
-        for n in attack_notes[:3]:
-            if "Keyword:" in n:
-                indicators.append(n.split("Keyword:")[-1].strip().strip("'").strip())
-            elif "->" in n:
-                indicators.append(n.split("->")[-1].strip())
-        st.warning(f"**Extractor flagged attack payload:** {' · '.join(indicators)}")
 
-    # Main verdict card
-    with st.container(border=True):
-        # Header row
-        st.markdown(f"""
-        <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;'>
-            <span style='font-family:JetBrains Mono,monospace; font-size:0.6rem; color:#30363d; text-transform:uppercase; letter-spacing:0.12em;'>AI VERDICT</span>
-            <span style='font-family:JetBrains Mono,monospace; font-size:0.6rem; color:#30363d;'>{result.get("processing_time_ms", 0):.0f} ms</span>
-        </div>
-        """, unsafe_allow_html=True)
+def render_process(e: dict):
+    """Audit trail theo TỪNG NÚT (thay cho khối chữ thô): mỗi nút một thẻ, đúng thứ tự xử lý."""
+    groups = group_notes(e.get("investigation_notes") or [])
+    pf = trusted(e).get("prefilter") or {}
+    if pf:
+        groups["Prefilter"] = [f"Làn {pf.get('lane', '?')} → {pf.get('decision', '?')}"
+                               + (f" (p tấn công = {pf['prob']:.3f})" if isinstance(pf.get("prob"), (int, float)) else "")
+                               + (f" · {pf.get('reason')}" if pf.get("reason") else "")]
+    for key, name, kind, color in NODE_META:
+        lines = groups.get(key)
+        if not lines:
+            continue
+        body = ""
+        for ln in lines:
+            c = ("#f85149" if re.search(r"ATT&CK R\d|CRITICAL OVERRIDE|LỖI", ln)
+                 else "#3fb950" if "[Lớp" in ln
+                 else "#e3904d" if ("[Thought]" in ln or "[Quyết định]" in ln)
+                 else "#d29922" if ("CẢNH BÁO" in ln or "Benign-context" in ln) else "#c9d1d9")
+            body += f"<div class='ln' style='color:{c}'>• {esc(ln)}</div>"
+        st.markdown(f"<div class='node' style='border-left-color:{color}'><span class='h'>{esc(name)}</span>"
+                    f"<span class='ty'>{esc(kind)}</span>{body}</div>", unsafe_allow_html=True)
 
-        # Severity + incident block
-        inc_id     = result.get("incident_id", "N/A")
-        chain_stg  = result.get("attack_chain_stage", "unknown").upper()
-        st.markdown(f"""
-        <div style='display:flex; align-items:center; gap:16px; margin-bottom:14px;'>
-            <div style='padding:8px 22px; border:1px solid {c}; border-radius:6px; background:{b}; text-align:center; min-width:96px;'>
-                <div style='font-family:JetBrains Mono,monospace; font-size:0.55rem; color:#484f58; text-transform:uppercase; letter-spacing:0.1em;'>SEVERITY</div>
-                <div style='font-family:JetBrains Mono,monospace; font-size:1.35rem; font-weight:600; color:{c}; line-height:1.45;'>{sev}</div>
-            </div>
-            <div>
-                <div style='font-family:JetBrains Mono,monospace; font-size:0.55rem; color:#484f58; text-transform:uppercase;'>INCIDENT ID</div>
-                <div style='font-family:JetBrains Mono,monospace; font-size:0.85rem; color:#58a6ff; margin-bottom:5px;'>{inc_id}</div>
-                <div style='font-family:JetBrains Mono,monospace; font-size:0.6rem; color:#484f58;'>CHAIN STAGE: <span style='color:#8b949e;'>{chain_stg}</span></div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
 
-        # Metrics
-        m1, m2 = st.columns(2)
-        m1.metric("Evidence Strength", f"{result.get('evidence_strength', 0.0):.2f}")
-        m2.metric("Confidence",        f"{result.get('confidence', 0.0):.2f}")
-
-        # Reasoning — fallback to thought_process when Llama echoes Field description
-        _raw_v = result.get("raw_ai_verdict", {})
-        reasoning = _raw_v.get("reasoning", "")
-        _BAD = ("Giải thích tư duy", "Phân tích RAG và đối chiếu log")
-        if not reasoning or len(reasoning) < 10 or any(s in reasoning for s in _BAD):
-            reasoning = _raw_v.get("thought_process", "")
-        reasoning = reasoning or "—"
-        st.info(f"**Reasoning:** {reasoning}")
-
-        # MITRE tags
-        tags = result.get("mitre_techniques", [])
-        if tags:
-            tag_html = "".join(
-                f"<span style='background:rgba(88,166,255,0.08); border:1px solid rgba(88,166,255,0.2); "
-                f"border-radius:3px; padding:2px 8px; font-family:JetBrains Mono,monospace; "
-                f"font-size:0.68rem; color:#58a6ff; margin:2px;'>{t}</span>"
-                for t in tags
-            )
-            st.markdown(f"""
-            <div style='margin-top:6px;'>
-                <div style='font-family:JetBrains Mono,monospace; font-size:0.55rem; color:#484f58; text-transform:uppercase; margin-bottom:6px;'>MITRE ATT&amp;CK</div>
-                <div style='display:flex; flex-wrap:wrap; gap:3px;'>{tag_html}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # Action
-        action_color = "#f85149" if action in ("BLOCK_IP", "ISOLATE_CONTAINER") else \
-                       "#3fb950" if action in ("IGNORE", "NONE") else "#58a6ff"
-        st.markdown(f"""
-        <div style='border-top:1px solid rgba(255,255,255,0.05); margin-top:12px; padding-top:10px;
-                    display:flex; justify-content:space-between; align-items:center;'>
-            <span style='font-family:JetBrains Mono,monospace; font-size:0.58rem; color:#30363d; text-transform:uppercase;'>RESPONSE ACTION</span>
-            <span style='font-family:JetBrains Mono,monospace; font-size:0.78rem; font-weight:600; color:{action_color};'>▶ {action}</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # XAI section
-    with st.expander("XAI — Internal Monologue"):
-        thought = result.get("raw_ai_verdict", {}).get("thought_process", "—")
-        st.info(thought)
-        with st.expander("Raw JSON Verdict", expanded=False):
-            st.json(result.get("raw_ai_verdict", {}))
-
-    with st.expander("Audit Trail — Node Log", expanded=False):
-        if notes:
-            st.code("\n".join(notes), language="bash")
-        else:
-            st.caption("No logs captured.")
-
-    if result.get("knowledge_conflict"):
-        st.warning("⚠️ Knowledge Conflict detected — possible RAG Poisoning attempt.")
+def build_feed(data: dict) -> pd.DataFrame:
+    rows = []
+    for e in data["recent"]:
+        t = trusted(e)
+        pf = t.get("prefilter") or {}
+        dec = (e.get("raw_ai_verdict") or {}).get("decision")
+        esc_ = escalation_of(e)
+        tac, _ta = event_tactic(e)
+        rows.append({
+            "Thời gian": hhmmss(e.get("received_at")),
+            "Luật Splunk": rule_name(e),
+            "Tactic": tac or "—",
+            "Mức luật": str(rule_of(e).get("level") or "—").upper(),
+            "Bề mặt": t.get("surface") or "—",
+            "Thực thể": entity_line(t),
+            "Prefilter": f"{pf.get('lane', '—')}: {pf.get('decision', '—')}"
+                         + (f" (p={pf['prob']:.2f})" if isinstance(pf.get("prob"), (int, float)) else ""),
+            "Agent": ("LLM LỖI" if e.get("llm_error") else str(e.get("severity", "?")).upper()),
+            "Quyết định": DECISION_LABEL.get(dec, (dec or "—", ""))[0]
+                          + (f" → {esc_.get('rule')} ↑{str(esc_.get('to')).upper()}" if esc_ else ""),
+            "Hành động": ACTION_LABEL.get(str(e.get("action_taken", "")).upper(), (e.get("action_taken"), ""))[0]
+                         + (" ✔ đã duyệt" if (e.get("human_decision") or {}).get("decision") == "approve"
+                            else " ✖ từ chối" if (e.get("human_decision") or {}).get("decision") == "reject" else ""),
+            "Sự cố": e.get("incident_id", "—"),
+            "ms": int(e.get("processing_time_ms") or 0),
+            "_ts": e.get("received_at") or "",
+        })
+    for p in (data.get("prefilter") or {}).get("events", []):
+        if p.get("decision") not in ("DROP", "DUP"):
+            continue
+        _lab = (f"{p.get('lane') or '?'}: DUP" + (f" (của {p['repeat_of']})" if p.get("repeat_of") else "")
+                if p.get("decision") == "DUP"
+                else (f"ml: DROP (p={p['prob']:.2f})" if isinstance(p.get("prob"), (int, float))
+                      else f"{p.get('lane') or 'ml'}: DROP"))
+        rows.append({
+            "Thời gian": hhmmss(p.get("time")), "Luật Splunk": p.get("rule_name"), "Tactic": "—",
+            "Mức luật": str(p.get("rule_level") or "").upper(), "Bề mặt": p.get("surface"),
+            "Thực thể": f"{p.get('src_ip') or '?'} → {p.get('dest_ip') or '?'}",
+            "Prefilter": _lab,
+            "Agent": "không lên", "Quyết định": "—", "Hành động": "—", "Sự cố": "—", "ms": 0,
+            "_ts": p.get("time") or "",
+        })
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df = df.sort_values("_ts", ascending=False).drop(columns=["_ts"])
+    return df
 
 
 # ═══════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ═══════════════════════════════════════════════════════════════════
 with st.sidebar:
-    logo_path = "assets/logo.jpg"
-    if os.path.exists(logo_path):
-        st.image(logo_path, width=90)
-
-    st.markdown("""
-    <div style='padding:10px 0 4px 0;'>
-        <div style='font-family:JetBrains Mono,monospace; font-size:0.6rem; color:#30363d; text-transform:uppercase; letter-spacing:0.14em;'>OPERATOR</div>
-        <div style='font-family:Inter,sans-serif; font-weight:600; font-size:1rem; color:#e6edf3; margin-top:2px;'>Hieudeptryyy</div>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("---")
-
-    # --- System status ---
-    try:
-        health_res = requests.get(f"{API_URL}/health", timeout=2)
-        api_ok = health_res.status_code == 200
-    except Exception:
-        api_ok = False
-
-    # Memory size — dùng /incidents để đồng bộ với Live Feed (cùng nguồn, tránh lệch 1 event)
-    mem_size = 0
-    try:
-        inc_sidebar_res = requests.get(f"{API_URL}/incidents", timeout=2)
-        if inc_sidebar_res.status_code == 200:
-            mem_size = inc_sidebar_res.json().get("timeline_size", 0)
-    except Exception:
-        pass
-
-    # SOAR mode
-    try:
-        with open("dashboard/config.json", "r") as f:
-            current_mode = json.load(f).get("SOAR_MODE", "SIMULATION")
-    except Exception:
-        current_mode = "SIMULATION"
-    allow_live = os.getenv("ALLOW_LIVE_MODE", "true").lower() == "true"
-    if current_mode == "LIVE" and not allow_live:
-        current_mode = "LOCKED"
-
-    ai_color   = "#3fb950" if api_ok else "#f85149"
-    ai_label   = "ONLINE"  if api_ok else "OFFLINE"
-    soar_color = "#f85149" if current_mode == "LIVE" else ("#d29922" if current_mode == "SIMULATION" else "#8b949e")
-    soar_label = current_mode
-
-    st.markdown(f"""
-    <div style='background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);
-                border-radius:8px; padding:12px 14px; font-family:JetBrains Mono,monospace;
-                font-size:0.7rem; line-height:2.3;'>
-        <div style='font-family:JetBrains Mono,monospace; font-size:0.58rem; color:#30363d;
-                    text-transform:uppercase; letter-spacing:0.12em; margin-bottom:6px;'>SYSTEM STATUS</div>
-        <div style='display:flex; justify-content:space-between;'>
-            <span style='color:#484f58;'>AI CORE</span>
-            <span style='color:{ai_color};'>{ai_label}</span>
-        </div>
-        <div style='display:flex; justify-content:space-between;'>
-            <span style='color:#484f58;'>RAG ENGINE</span>
-            <span style='color:#3fb950;'>READY</span>
-        </div>
-        <div style='display:flex; justify-content:space-between;'>
-            <span style='color:#484f58;'>SOAR MODE</span>
-            <span style='color:{soar_color};'>{soar_label}</span>
-        </div>
-        <div style='display:flex; justify-content:space-between;'>
-            <span style='color:#484f58;'>MEMORY</span>
-            <span style='color:#{"58a6ff" if mem_size > 0 else "30363d"};'>{mem_size} events</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    if allow_live:
-        is_live = st.toggle("🔥 LIVE MODE (armed)", value=(current_mode == "LIVE"))
-        new_mode = "LIVE" if is_live else "SIMULATION"
-        if new_mode != current_mode:
-            try:
-                with open("dashboard/config.json", "w") as f:
-                    json.dump({"SOAR_MODE": new_mode}, f)
-            except Exception:
-                pass
-            st.rerun()
-    else:
-        st.warning("LIVE mode locked by ENV.")
-
-    st.markdown("---")
-    st.caption("KMA Autonomous SOC Agent · ATTT")
-
-# ═══════════════════════════════════════════════════════════════════
-# HEADER
-# ═══════════════════════════════════════════════════════════════════
-st.markdown("""
-<div style='display:flex; align-items:center; gap:12px; padding:16px 0 8px 0;
-            border-bottom:1px solid rgba(255,255,255,0.05); margin-bottom:22px;'>
-    <div style='width:36px; height:36px; background:rgba(88,166,255,0.08);
-                border:1px solid rgba(88,166,255,0.2); border-radius:8px;
-                display:flex; align-items:center; justify-content:center; font-size:18px;'>🛡️</div>
-    <div>
-        <div style='font-family:Inter,sans-serif; font-weight:600; font-size:1.1rem; color:#e6edf3; letter-spacing:0.03em;'>
-            KMA UNIFIED SOC COMMAND CENTER
-        </div>
-        <div style='font-family:JetBrains Mono,monospace; font-size:0.62rem; color:#30363d; letter-spacing:0.12em; text-transform:uppercase; margin-top:2px;'>
-            Autonomous Threat Intelligence &amp; Response Platform
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ═══════════════════════════════════════════════════════════════════
-# RADAR OVERVIEW
-# ═══════════════════════════════════════════════════════════════════
-try:
-    inc_res = requests.get(f"{API_URL}/incidents", timeout=4)
-    inc_data = inc_res.json() if inc_res.status_code == 200 else {}
-except Exception:
-    inc_data = {}
-
-col_stat1, col_stat2 = st.columns([1, 1.8])
-with col_stat1:
-    sec_label("Radar Overview")
-    st.metric("TOTAL INCIDENTS", inc_data.get("total_incidents", 0))
-    total = inc_data.get("total_incidents", 0) or 1
-    for label_txt, key, color in [("CRITICAL","critical","#f85149"),("HIGH","high","#e3904d"),
-                                   ("MEDIUM","medium","#d29922"),("LOW","low","#3fb950")]:
-        count = inc_data.get(key, 0)
-        pct   = int(count / total * 100)
-        st.markdown(f"""
-        <div style='margin:5px 0;'>
-            <div style='display:flex; justify-content:space-between; margin-bottom:3px;'>
-                <span style='font-family:JetBrains Mono,monospace; font-size:0.66rem; color:{color};'>{label_txt}</span>
-                <span style='font-family:JetBrains Mono,monospace; font-size:0.66rem; color:#484f58;'>{count}</span>
-            </div>
-            <div style='background:rgba(255,255,255,0.04); border-radius:2px; height:3px;'>
-                <div style='background:{color}; width:{pct}%; height:3px; border-radius:2px; opacity:0.85;'></div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-with col_stat2:
-    sec_label("Severity Distribution")
-    values = [inc_data.get(k, 0) for k in ("critical","high","medium","low")]
-    if sum(values) > 0:
-        try:
-            # color_discrete_sequence avoids the plotly 6.x colorway lookup bug
-            # that causes a pandas partial-init crash via apply_default_cascade
-            fig = px.pie(
-                names=["CRITICAL","HIGH","MEDIUM","LOW"],
-                values=values,
-                hole=0.58,
-                color_discrete_sequence=["#f85149","#e3904d","#d29922","#3fb950"],
-            )
-            fig.update_layout(
-                margin=dict(t=0, b=0, l=0, r=0), height=190,
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(family="JetBrains Mono", size=10, color="#484f58"),
-                legend=dict(font=dict(size=10, color="#484f58"), bgcolor="rgba(0,0,0,0)"),
-                showlegend=True,
-            )
-            fig.update_traces(textfont=dict(family="JetBrains Mono", size=10))
-            st.plotly_chart(fig, use_container_width=True)
-        except Exception as chart_err:
-            # Fallback: bar chart using only built-in markdown
-            st.caption(f"Chart render error: {chart_err}")
-            for label_txt, val, color in zip(
-                ["CRITICAL","HIGH","MEDIUM","LOW"],
-                values,
-                ["#f85149","#e3904d","#d29922","#3fb950"],
-            ):
-                pct = int(val / (sum(values) or 1) * 100)
-                st.markdown(f"""
-                <div style='margin:4px 0; display:flex; align-items:center; gap:10px;'>
-                    <span style='font-family:JetBrains Mono,monospace; font-size:0.65rem; color:{color}; min-width:70px;'>{label_txt}</span>
-                    <div style='flex:1; background:rgba(255,255,255,0.04); border-radius:2px; height:4px;'>
-                        <div style='background:{color}; width:{pct}%; height:4px; border-radius:2px;'></div>
-                    </div>
-                    <span style='font-family:JetBrains Mono,monospace; font-size:0.65rem; color:#484f58;'>{val}</span>
-                </div>
-                """, unsafe_allow_html=True)
-    else:
-        st.markdown(
-            "<div style='font-family:JetBrains Mono,monospace; font-size:0.72rem; color:#30363d; padding:20px 0;'>"
-            "No incident data yet.</div>",
-            unsafe_allow_html=True,
-        )
-
-st.markdown("---")
-
-# ═══════════════════════════════════════════════════════════════════
-# INVESTIGATION CONSOLE — two tabs
-# ═══════════════════════════════════════════════════════════════════
-sec_label("Investigation Console")
-tab_single, tab_batch, tab_live = st.tabs(["  SINGLE LOG  ", "  BATCH CHAIN  ", "  LIVE FEED  "])
-
-# ───────────────────────────────────────────────────────────────────
-# TAB 1 — SINGLE LOG
-# ───────────────────────────────────────────────────────────────────
-with tab_single:
-    col_in, col_out = st.columns([1, 1.2], gap="large")
-
-    with col_in:
-        st.markdown("""
-        <div style='font-family:JetBrains Mono,monospace; font-size:0.66rem; color:#484f58;
-                    text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px;'>
-            Log Intake · SIEM / Manual
-        </div>
-        """, unsafe_allow_html=True)
-
-        b1, b2, b3 = st.columns([1.3, 1, 1])
-        with b1:
-            fetch_btn = st.button("↓ Pull Latest Log", key="single_fetch")
-        with b2:
-            analyze_btn = st.button("▶ Run Analysis", type="primary", key="single_run")
-        with b3:
-            reset_btn = st.button("✕ Clear Memory", key="single_reset")
-
-        if reset_btn:
-            try:
-                requests.post(f"{API_URL}/reset", timeout=5)
-                st.success("Memory cleared.")
-                time.sleep(0.6)
-                st.rerun()
-            except Exception:
-                st.error("Failed to contact backend.")
-
-        default_log = ""
-        if fetch_btn:
-            try:
-                r = requests.get(f"{API_URL}/stats", timeout=4)
-                if r.status_code == 200:
-                    events = r.json().get("recent_events", [])
-                    if events:
-                        default_log = json.dumps(events[-1], indent=2, ensure_ascii=False)
-                        st.success("Fetched latest event from memory.")
-                    else:
-                        st.warning("Memory is empty.")
-            except Exception:
-                st.error("Backend unreachable.")
-
-        log_input = st.text_area(
-            "Paste JSON log:",
-            value=default_log,
-            height=260,
-            placeholder='{\n  "timestamp": "2026-06-17T10:00:00",\n  "source_ip": "10.0.0.5",\n  "event_type": "auth_attempt",\n  "message": "\' OR \'1\'=\'1\'--"\n}',
-            key="single_input",
-        )
-
-        st.markdown("""
-        <div style='font-family:JetBrains Mono,monospace; font-size:0.6rem; color:#30363d; margin-top:6px;'>
-            Tip: submit logs in sequence without clearing memory to simulate a chain.
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col_out:
-        st.markdown("""
-        <div style='font-family:JetBrains Mono,monospace; font-size:0.66rem; color:#484f58;
-                    text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px;'>
-            Agent Verdict
-        </div>
-        """, unsafe_allow_html=True)
-
-        if analyze_btn:
-            if not log_input.strip():
-                st.warning("No log data. Paste a log or pull from memory.")
-            else:
-                with st.spinner("LangGraph pipeline executing…"):
-                    try:
-                        try:
-                            log_dict = json.loads(log_input)
-                        except json.JSONDecodeError:
-                            log_dict = {"message": log_input, "source_ip": "unknown"}
-
-                        res = requests.post(
-                            f"{API_URL}/analyze",
-                            json={"raw_log": log_dict},
-                            timeout=180,
-                        )
-                        if res.status_code == 200:
-                            result = res.json()
-                            render_verdict(result)
-
-                            st.markdown("---")
-                            sec_label(f"Attack Kill Chain  ·  {len(result.get('attack_timeline', []))} event(s)")
-                            render_timeline(result.get("attack_timeline", []))
-                        else:
-                            st.error(f"Backend error {res.status_code}: {res.text[:300]}")
-                    except Exception as e:
-                        st.error(f"Connection error: {e}")
-
-# ───────────────────────────────────────────────────────────────────
-# TAB 2 — BATCH CHAIN
-# ───────────────────────────────────────────────────────────────────
-with tab_batch:
-    col_b_in, col_b_out = st.columns([1, 1.2], gap="large")
-
-    with col_b_in:
-        st.markdown("""
-        <div style='font-family:JetBrains Mono,monospace; font-size:0.66rem; color:#484f58;
-                    text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px;'>
-            Batch Log Chain · JSON Array
-        </div>
-        """, unsafe_allow_html=True)
-
-        example_batch = json.dumps([
-            {"timestamp": "2026-06-17T09:00:00", "source_ip": "45.33.22.11",
-             "event_type": "web_access", "message": "GET /admin"},
-            {"timestamp": "2026-06-17T09:01:30", "source_ip": "45.33.22.11",
-             "event_type": "auth_attempt", "message": "username=admin&password=' OR '1'='1'--"},
-            {"timestamp": "2026-06-17T09:02:45", "source_ip": "45.33.22.11",
-             "event_type": "auth_success", "message": "Login successful"},
-        ], indent=2, ensure_ascii=False)
-
-        batch_input = st.text_area(
-            "JSON array of logs (chronological order):",
-            value="",
-            height=290,
-            placeholder=example_batch,
-            key="batch_input",
-        )
-
-        reset_before = st.checkbox("Reset memory before running batch", value=True, key="batch_reset")
-
-        b_run = st.button("▶ Run Batch Analysis", type="primary", key="batch_run")
-
-        st.markdown("""
-        <div style='font-family:JetBrains Mono,monospace; font-size:0.6rem; color:#30363d; margin-top:8px; line-height:1.8;'>
-            Each log is analyzed sequentially.<br>
-            Log N+1 sees the history built by log N.<br>
-            Ideal for testing kill chain: recon → exploit → auth_success.
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col_b_out:
-        st.markdown("""
-        <div style='font-family:JetBrains Mono,monospace; font-size:0.66rem; color:#484f58;
-                    text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px;'>
-            Batch Results
-        </div>
-        """, unsafe_allow_html=True)
-
-        if b_run:
-            if not batch_input.strip():
-                st.warning("Paste a JSON array of logs first.")
-            else:
-                try:
-                    logs_list = json.loads(batch_input)
-                    if not isinstance(logs_list, list):
-                        st.error("Input must be a JSON array [ {...}, {...} ].")
-                        st.stop()
-                except json.JSONDecodeError as e:
-                    st.error(f"JSON parse error: {e}")
-                    st.stop()
-
-                with st.spinner(f"Running batch analysis on {len(logs_list)} logs…"):
-                    try:
-                        batch_res = requests.post(
-                            f"{API_URL}/analyze/batch",
-                            json={"logs": logs_list, "reset_memory": reset_before},
-                            timeout=600,
-                        )
-                        if batch_res.status_code != 200:
-                            st.error(f"Backend error {batch_res.status_code}: {batch_res.text[:300]}")
-                            st.stop()
-
-                        batch_data = batch_res.json()
-                    except Exception as e:
-                        st.error(f"Connection error: {e}")
-                        st.stop()
-
-                results_list = batch_data.get("results", [])
-                summary      = batch_data.get("batch_summary", {})
-                pf_stats     = batch_data.get("pre_filter_stats", {})
-                processed    = batch_data.get("processed", 0)
-                total_logs   = batch_data.get("total", 0)
-
-                # Pre-filter summary (nếu có)
-                if pf_stats:
-                    pf_c1, pf_c2, pf_c3 = st.columns(3)
-                    pf_c1.metric("Noise dropped", pf_stats.get("noise_dropped", 0),
-                                 help="event_type rõ ràng là noise kỹ thuật — bỏ qua ngay")
-                    pf_c2.metric("Clean filtered", pf_stats.get("clean_filtered", 0),
-                                 help="Extractor không tìm thấy attack indicator — skip LLM")
-                    pf_c3.metric("LLM analyzed", pf_stats.get("llm_analyzed", 0),
-                                 help="Log thực sự đáng ngờ — đi qua toàn bộ 6-node pipeline")
-                    st.markdown("---")
-
-                # Summary mini-cards
-                sc1, sc2, sc3, sc4, sc5 = st.columns(5)
-                sc1.metric("Total", total_logs)
-                sc2.metric("OK",    processed)
-                sc3.markdown(f"""
-                <div style='padding:10px; background:rgba(248,81,73,0.06); border:1px solid rgba(248,81,73,0.2);
-                            border-radius:8px; text-align:center;'>
-                    <div style='font-family:JetBrains Mono,monospace; font-size:0.6rem; color:#484f58; text-transform:uppercase;'>CRITICAL</div>
-                    <div style='font-family:JetBrains Mono,monospace; font-size:1.3rem; font-weight:600; color:#f85149;'>{summary.get("critical",0)}</div>
-                </div>
-                """, unsafe_allow_html=True)
-                sc4.markdown(f"""
-                <div style='padding:10px; background:rgba(227,144,77,0.06); border:1px solid rgba(227,144,77,0.2);
-                            border-radius:8px; text-align:center;'>
-                    <div style='font-family:JetBrains Mono,monospace; font-size:0.6rem; color:#484f58; text-transform:uppercase;'>HIGH</div>
-                    <div style='font-family:JetBrains Mono,monospace; font-size:1.3rem; font-weight:600; color:#e3904d;'>{summary.get("high",0)}</div>
-                </div>
-                """, unsafe_allow_html=True)
-                sc5.markdown(f"""
-                <div style='padding:10px; background:rgba(210,153,34,0.06); border:1px solid rgba(210,153,34,0.2);
-                            border-radius:8px; text-align:center;'>
-                    <div style='font-family:JetBrains Mono,monospace; font-size:0.6rem; color:#484f58; text-transform:uppercase;'>MEDIUM</div>
-                    <div style='font-family:JetBrains Mono,monospace; font-size:1.3rem; font-weight:600; color:#d29922;'>{summary.get("medium",0)}</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                st.markdown("---")
-
-                # Per-log result rows
-                sec_label("Per-Log Results")
-                for i, r in enumerate(results_list):
-                    if "error" in r:
-                        st.error(f"Log #{i+1} — {r['error']}")
-                        continue
-
-                    # Log đã bị pre-filter → hiển thị dạng mờ, không mở rộng
-                    if r.get("pre_filtered"):
-                        _tier = r.get("filter_tier", "clean")
-                        _tier_label = "NOISE DROP" if _tier == "noise" else "CLEAN FILTER"
-                        _tier_color = "#30363d" if _tier == "noise" else "#484f58"
-                        st.markdown(
-                            f"<div style='font-family:JetBrains Mono,monospace;font-size:0.62rem;"
-                            f"color:{_tier_color};padding:3px 8px;border-left:2px solid {_tier_color};"
-                            f"margin:2px 0;opacity:0.6'>"
-                            f"Log #{i+1} · {r.get('event_type','?')} · {r.get('source_ip','?')} "
-                            f"→ [{_tier_label}] bỏ qua LLM</div>",
-                            unsafe_allow_html=True,
-                        )
-                        continue
-
-                    sev_val    = r.get("severity", "LOW")
-                    # Full reasoning — fallback to thought_process when Llama echoes Field description
-                    _raw_v_b   = r.get("raw_ai_verdict", {})
-                    _r_text    = _raw_v_b.get("reasoning", "")
-                    _BAD = ("Giải thích tư duy", "Phân tích RAG và đối chiếu log")
-                    if not _r_text or len(_r_text) < 10 or any(s in _r_text for s in _BAD):
-                        _r_text = _raw_v_b.get("thought_process", "")
-                    ev_type    = _r_text or "—"
-                    inc        = r.get("incident_id", "N/A")
-                    ev_str     = r.get("evidence_strength", 0.0)
-                    action_val = r.get("action_taken", "NONE")
-                    notes_val  = r.get("investigation_notes", [])
-                    conflict   = r.get("knowledge_conflict", False)
-
-                    attack_flag = any("CẢNH BÁO ĐỎ" in n for n in notes_val)
-                    # Single-line HTML — avoids Streamlit markdown parser treating
-                    # indented multi-line HTML as a code block (4-space rule)
-                    flag_chip_html = (
-                        "<span style='background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.3);"
-                        "border-radius:3px;padding:1px 7px;font-family:JetBrains Mono,monospace;"
-                        "font-size:0.6rem;color:#f85149;margin-left:8px'>ATTACK PAYLOAD</span>"
-                        if attack_flag else ""
-                    )
-
-                    with st.expander(f"Log #{i+1}  ·  {sev_val}  ·  {inc}", expanded=(sev_val in ("CRITICAL","HIGH"))):
-                        # Single-line HTML string — newlines inside f-string cause
-                        # Streamlit's markdown engine to code-block the indented spans
-                        st.markdown(
-                            f"<div style='display:flex;align-items:center;gap:12px;margin-bottom:10px'>"
-                            f"{badge(sev_val)}{flag_chip_html}"
-                            f"<span style='font-family:JetBrains Mono,monospace;font-size:0.62rem;"
-                            f"color:#484f58;margin-left:auto'>evidence {ev_str:.2f} · {action_val}</span>"
-                            f"</div>",
-                            unsafe_allow_html=True,
-                        )
-                        st.info(f"**Reasoning:** {ev_type}")
-
-                        if conflict:
-                            st.warning("⚠️ **Knowledge Conflict** — Reflection phát hiện mâu thuẫn LLM vs RAG. Có thể là RAG Poisoning. Pipeline vẫn tiếp tục, kết quả cần SOC Analyst xác nhận.")
-
-                        tags_val = r.get("mitre_techniques", [])
-                        if tags_val:
-                            t_html = "".join(
-                                f"<span style='background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.2);"
-                                f"border-radius:3px;padding:2px 8px;font-family:JetBrains Mono,monospace;"
-                                f"font-size:0.65rem;color:#58a6ff;margin:2px'>{t}</span>"
-                                for t in tags_val
-                            )
-                            st.markdown(f"<div style='margin-top:4px'>{t_html}</div>", unsafe_allow_html=True)
-
-                        with st.expander("Audit Trail", expanded=False):
-                            if notes_val:
-                                st.code("\n".join(notes_val), language="bash")
-
-                # Kill chain summary — không render full ở đây để tránh trùng với Live Feed
-                _btl_size = batch_data.get("final_timeline_size", 0)
-                if _btl_size > 0:
-                    st.markdown("---")
-                    sec_label(f"Attack Chain Summary · {_btl_size} event(s) accumulated")
-                    st.info("📡 Kill chain đầy đủ hiển thị trong tab **Live Feed** — cùng nguồn `/timeline`, không bị trùng.")
-
-# ───────────────────────────────────────────────────────────────────
-# TAB 3 — LIVE FEED (nhận log từ hệ thống bên ngoài đẩy vào)
-# ───────────────────────────────────────────────────────────────────
-with tab_live:
-    # Controls row
-    lf_ctrl1, lf_ctrl2, lf_ctrl3 = st.columns([1, 1, 5])
-    with lf_ctrl1:
-        if st.button("✕ Clear Feed", key="live_clear"):
-            try:
-                requests.post(f"{API_URL}/reset", timeout=5)
-                st.success("Feed cleared.")
-                time.sleep(0.5)
-                st.rerun()
-            except Exception:
-                st.error("Backend unreachable.")
-    with lf_ctrl2:
-        if st.button("⟳ Refresh", key="live_manual_refresh"):
-            st.rerun()
-
-    # Auto-refresh toggle — NẰM TRONG tab_live, không ảnh hưởng tab khác
-    auto_refresh = st.toggle("🔄 Auto Radar Scan (4s)", value=False, key="live_auto_refresh")
-
-    try:
-        lf_res  = requests.get(f"{API_URL}/recent",    timeout=4)
-        inc_res = requests.get(f"{API_URL}/incidents", timeout=4)
-        tl_res  = requests.get(f"{API_URL}/timeline",  timeout=4)
-        lf_data   = lf_res.json()  if lf_res.status_code  == 200 else {"count": 0, "results": []}
-        inc_data  = inc_res.json() if inc_res.status_code == 200 else {}
-        live_timeline = tl_res.json().get("events", []) if tl_res.status_code == 200 else []
-    except Exception:
-        lf_data  = {"count": 0, "results": []}
-        inc_data = {}
-        live_timeline = []
-
-    lf_results   = lf_data.get("results", [])
-    lf_total     = lf_data.get("count", 0)
-    total_pushed = inc_data.get("total_incidents", lf_total)
-
-    _total_received = inc_data.get("total_received", total_pushed)
-    _noise    = inc_data.get("noise_dropped", 0)
-    _clean    = inc_data.get("clean_filtered", 0)
-    _pending  = inc_data.get("pending_analysis", 0)
-    _llm_cnt  = inc_data.get("total_incidents", lf_total)
-
-    if lf_total == 0 and _total_received == 0:
-        st.markdown(
-            "<div style='font-family:JetBrains Mono,monospace; font-size:0.8rem; color:#30363d; "
-            "padding:40px 0; text-align:center;'>Đang chờ log từ hệ thống bên ngoài…<br>"
-            "<span style='font-size:0.65rem;'>Bật Auto Radar Scan hoặc bấm ⟳ Refresh để cập nhật</span></div>",
-            unsafe_allow_html=True,
-        )
-    elif lf_total == 0:
-        # Đã nhận logs nhưng không có LLM result trong buffer
-        if _pending > 0:
-            st.info(f"🔄 **{_pending}** log đang được LLM phân tích... Bấm ⟳ Refresh sau vài giây.")
-        if _llm_cnt > 0:
-            # LLM đã chạy nhưng buffer chưa cập nhật (vừa reset hoặc edge case)
-            st.warning(
-                f"⚠️ **{_total_received}** log đã nhận · **{_llm_cnt}** đã qua LLM.  "
-                f"⬇ {_noise} noise dropped · ✓ {_clean} clean (no indicator).  "
-                f"Bấm ⟳ Refresh để tải kết quả."
-            )
-        else:
-            st.info(
-                f"✅ **{_total_received}** log đã nhận — tất cả bị pre-filter trước LLM.  "
-                f"⬇ {_noise} noise dropped · ✓ {_clean} clean (no indicator).  "
-                f"Không có mối đe dọa nào đủ điều kiện phân tích sâu."
-            )
-        # Kill chain vẫn hiện nếu timeline có dữ liệu
-        if live_timeline:
-            _lf_attack_evs = [e for e in live_timeline if str(e.get("severity", "low")).lower() in ("high", "critical")]
-            st.markdown("---")
-            sec_label(f"Final Attack Chain · {len(live_timeline)} tổng events · {len(_lf_attack_evs)} attack events được xác nhận")
-            render_timeline(live_timeline)
-    else:
-        # Dùng GLOBAL_INCIDENT_STATS (cùng nguồn với RADAR) thay vì đếm từ RECENT buffer
-        # → đảm bảo count cards luôn nhất quán với Radar Overview
-        lf_sev = {
-            "CRITICAL": inc_data.get("critical", 0),
-            "HIGH":     inc_data.get("high", 0),
-            "MEDIUM":   inc_data.get("medium", 0),
-            "LOW":      inc_data.get("low", 0),
-        }
-
-        if _pending > 0:
-            st.info(f"🔄 **{_pending}** log đang được LLM phân tích... Bấm ⟳ Refresh sau vài giây.")
-
-        lf_s1, lf_s2, lf_s3, lf_s4, lf_s5 = st.columns(5)
-        lf_s1.metric(
-            "Nhận được",
-            _total_received,
-            help=f"LLM phân tích: {_llm_cnt} · Filtered: {_noise + _clean} (noise: {_noise}, clean: {_clean})"
-        )
-        lf_s2.markdown(
-            f"<div style='padding:10px;background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.2);border-radius:8px;text-align:center'>"
-            f"<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#484f58;text-transform:uppercase'>CRITICAL</div>"
-            f"<div style='font-family:JetBrains Mono,monospace;font-size:1.3rem;font-weight:600;color:#f85149'>{lf_sev['CRITICAL']}</div></div>",
-            unsafe_allow_html=True)
-        lf_s3.markdown(
-            f"<div style='padding:10px;background:rgba(227,144,77,0.06);border:1px solid rgba(227,144,77,0.2);border-radius:8px;text-align:center'>"
-            f"<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#484f58;text-transform:uppercase'>HIGH</div>"
-            f"<div style='font-family:JetBrains Mono,monospace;font-size:1.3rem;font-weight:600;color:#e3904d'>{lf_sev['HIGH']}</div></div>",
-            unsafe_allow_html=True)
-        lf_s4.markdown(
-            f"<div style='padding:10px;background:rgba(210,153,34,0.06);border:1px solid rgba(210,153,34,0.2);border-radius:8px;text-align:center'>"
-            f"<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#484f58;text-transform:uppercase'>MEDIUM</div>"
-            f"<div style='font-family:JetBrains Mono,monospace;font-size:1.3rem;font-weight:600;color:#d29922'>{lf_sev['MEDIUM']}</div></div>",
-            unsafe_allow_html=True)
-        lf_s5.markdown(
-            f"<div style='padding:10px;background:rgba(63,185,80,0.06);border:1px solid rgba(63,185,80,0.2);border-radius:8px;text-align:center'>"
-            f"<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#484f58;text-transform:uppercase'>LOW / CLEAN</div>"
-            f"<div style='font-family:JetBrains Mono,monospace;font-size:1.3rem;font-weight:600;color:#3fb950'>{lf_sev['LOW']}</div></div>",
-            unsafe_allow_html=True)
-
-        if _noise + _clean > 0:
-            st.markdown(
-                f"<div style='font-family:JetBrains Mono,monospace; font-size:0.62rem; "
-                f"color:#484f58; margin:6px 0 2px 0; padding:6px 10px; "
-                f"background:rgba(255,255,255,0.02); border-radius:6px;'>"
-                f"Pre-filter: "
-                f"<span style='color:#d29922'>⬇ {_noise} noise dropped</span>"
-                f"<span style='color:#30363d'> · </span>"
-                f"<span style='color:#3fb950'>✓ {_clean} clean (no indicator)</span>"
-                f"<span style='color:#30363d'> · </span>"
-                f"<span style='color:#58a6ff'>🔬 {_llm_cnt} LLM analyzed</span></div>",
+    logo = ROOT / "assets" / "logo.jpg"
+    if logo.exists():
+        st.image(str(logo), width=80)
+    st.markdown("<div style='font-weight:600;color:#e6edf3;font-size:1.05rem'>AegisSOC</div>"
+                "<div class='lbl' style='margin-top:0'>Autonomous SOC Agent · MITRE ATT&amp;CK</div>",
                 unsafe_allow_html=True)
+    st.markdown("---")
 
-        st.markdown("---")
-        sec_label("Kết quả phân tích từng log (mới nhất ở trên)")
+    DATA = {a: load_agent(a) for a in AGENTS}
+    lbl("Trạng thái Agent")
+    for a, d in DATA.items():
+        h = d["health"]
+        if d["online"]:
+            llm_ok = (h.get("llm") or {}).get("reachable")
+            layers = h.get("layers") or []
+            lay = "".join(chip(LAYER_INFO[k][0], "#3fb950") if k in layers else "" for k in (1, 2, 4, 5)) \
+                or chip("không phòng thủ", "#f85149")
+            ri = h.get("rag_integrity") or {}
+            if 5 in layers and ri.get("manifest_trusted") is False:   # B8.1: fail-closed
+                lay += chip(f"RAG FAIL-CLOSED: {ri.get('problem')}", "#f85149")
+            st.markdown(
+                f"<div class='kv'><b style='color:#e6edf3'>{esc(a.upper())}</b> "
+                f"<span style='color:#3fb950'>● online</span> · LLM "
+                f"<span style='color:{'#3fb950' if llm_ok else '#f85149'}'>{'OK' if llm_ok else 'LỖI'}</span><br>"
+                f"<span class='mono' style='color:#6e7681;font-size:0.65rem'>{esc(AGENTS[a])}</span><br>{lay}</div>",
+                unsafe_allow_html=True)
+        else:
+            st.markdown(f"<div class='kv'><b style='color:#e6edf3'>{esc(a.upper())}</b> "
+                        f"<span style='color:#f85149'>● offline</span> "
+                        f"<span style='color:#6e7681'>({esc(d['error'])})</span></div>", unsafe_allow_html=True)
+    st.markdown("<div class='kv'><span class='k'>SOAR</span>"
+                + chip("SIMULATION · KHOÁ", "#d29922") + "</div>", unsafe_allow_html=True)
+    st.markdown("---")
 
-        for _r in reversed(lf_results):
-            _sev      = str(_r.get("severity", "LOW")).upper()
-            _src_ip   = _r.get("source_ip", "N/A")
-            _ev_type  = _r.get("event_type", "unknown")
-            _recv_at  = _r.get("received_at", "")[:19]
-            _action   = _r.get("action_taken", "NONE")
-            _ev_str   = _r.get("evidence_strength", 0.0)
-            _notes    = _r.get("investigation_notes", [])
-            _chain    = _r.get("attack_chain_stage", "").upper()
+    online = [a for a in AGENTS if DATA[a]["online"]] or list(AGENTS)
+    view = st.radio("Bản Agent đang xem", online, horizontal=True,
+                    format_func=lambda a: {"full": "full (bật phòng thủ)", "off": "off (đường cơ sở)"}[a])
+    operator = st.text_input("Người duyệt", value=st.session_state.get("operator", "analyst"), max_chars=60)
+    st.session_state["operator"] = operator
 
-            _attack_flag = any("CẢNH BÁO ĐỎ" in n for n in _notes)
-            _flag_chip = (
-                "<span style='background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.3);"
-                "border-radius:3px;padding:1px 7px;font-family:JetBrains Mono,monospace;"
-                "font-size:0.6rem;color:#f85149;margin-left:8px'>ATTACK PAYLOAD</span>"
-                if _attack_flag else ""
-            )
-
-            with st.expander(
-                f"{_recv_at}  ·  {_src_ip}  ·  {_ev_type}  →  {_sev}",
-                expanded=(_sev in ("CRITICAL", "HIGH"))
-            ):
-                st.markdown(
-                    f"<div style='display:flex;align-items:center;gap:12px;margin-bottom:10px'>"
-                    f"{badge(_sev)}{_flag_chip}"
-                    f"<span style='font-family:JetBrains Mono,monospace;font-size:0.62rem;"
-                    f"color:#484f58;margin-left:auto'>{_chain} · evidence {_ev_str:.2f} · {_action}</span>"
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
-
-                _raw_verdict = _r.get("raw_ai_verdict", {})
-                _reasoning = _raw_verdict.get("reasoning", "")
-                _BAD = ("Giải thích tư duy", "Phân tích RAG và đối chiếu log")
-                if not _reasoning or len(_reasoning) < 10 or any(s in _reasoning for s in _BAD):
-                    _reasoning = _raw_verdict.get("thought_process", "")
-                _reasoning = _reasoning or "—"
-                st.info(f"**Reasoning:** {_reasoning}")
-
-                _tags = _r.get("mitre_techniques", [])
-                if _tags:
-                    _t_html = "".join(
-                        f"<span style='background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.2);"
-                        f"border-radius:3px;padding:2px 8px;font-family:JetBrains Mono,monospace;"
-                        f"font-size:0.65rem;color:#58a6ff;margin:2px'>{t}</span>"
-                        for t in _tags
-                    )
-                    st.markdown(f"<div style='margin-top:4px'>{_t_html}</div>", unsafe_allow_html=True)
-
-                if _r.get("knowledge_conflict"):
-                    st.warning("⚠️ Knowledge Conflict — có thể là RAG Poisoning.")
-
-                with st.expander("Audit Trail", expanded=False):
-                    if _notes:
-                        st.code("\n".join(_notes), language="bash")
-
-            st.divider()
-
-        # Final Attack Chain — fetch LIVE từ /timeline (cùng nguồn với Batch Chain tab)
-        if live_timeline:
-            _lf_attack_evs = [e for e in live_timeline if str(e.get("severity", "low")).lower() in ("high", "critical")]
-            st.markdown("---")
-            sec_label(f"Final Attack Chain · {len(live_timeline)} tổng events · {len(_lf_attack_evs)} attack events được xác nhận")
-            render_timeline(live_timeline)
-
-    # Auto-refresh ở cuối tab_live — chỉ rerun khi đang bật, không ảnh hưởng tab khác
-    if st.session_state.get("live_auto_refresh", False):
-        time.sleep(4)
+    c1, c2 = st.columns(2)
+    if c1.button("↺ Reset bản này", use_container_width=True):
+        api_post(view, "/reset")
         st.rerun()
+    if c2.button("↺ Reset cả hai", use_container_width=True):
+        for a in AGENTS:
+            api_post(a, "/reset")
+        st.rerun()
+    auto = st.toggle("Tự làm mới", value=False)
+    every = st.slider("Chu kỳ (giây)", 3, 30, 5, disabled=not auto)
+    if not INTERNAL_TOKEN:
+        st.caption("Chưa có AGENT_INTERNAL_TOKEN → không duyệt được đề xuất / không xem nhật ký toàn vẹn ở bản full.")
+
+D = DATA[view]
+H = D["health"]
+
+# ═══════════════════════════════════════════════════════════════════
+# HEADER + KPI
+# ═══════════════════════════════════════════════════════════════════
+prof = str(H.get("defense_profile") or view).upper()
+st.markdown(
+    f"<div style='display:flex;align-items:center;gap:12px;padding:6px 0 10px 0;"
+    f"border-bottom:1px solid rgba(255,255,255,0.05);margin-bottom:14px'>"
+    f"<div style='font-size:26px'>🛡️</div><div><div style='font-weight:600;font-size:1.1rem;color:#e6edf3'>"
+    f"AEGISSOC COMMAND CENTER</div><div class='lbl' style='margin:2px 0 0 0'>Splunk → Prefilter → Agent "
+    f"(LangGraph · Llama 3.1 8B) → SOAR · đang xem bản {esc(prof)}</div></div></div>",
+    unsafe_allow_html=True)
+
+if not D["online"]:
+    st.error(f"Không kết nối được Agent '{view}' tại {AGENTS[view]} ({D['error']}). Kiểm tra uvicorn đã chạy chưa.")
+
+recent = D["recent"]
+pf_counts = (D.get("prefilter") or {}).get("counts", {})
+n_drop = sum(v for k, v in pf_counts.items() if k.endswith(":DROP"))
+n_unc = sum(v for k, v in pf_counts.items() if k.endswith(":PASS_UNCERTAIN"))
+n_recv = sum(pf_counts.values()) if pf_counts else len(recent)
+n_pending = sum(1 for e in recent if pending_undecided(e))
+incidents = sorted({e.get("incident_id") for e in recent if e.get("incident_id")})
+lat = [e.get("processing_time_ms") or 0 for e in recent if not e.get("llm_error")]
+k = st.columns(6)
+k[0].metric("Alert nhận", n_recv)
+k[1].metric("Prefilter DROP", n_drop, help="Alert mạng mà model RF chắc là lành tính — không tốn lượt LLM")
+k[2].metric("Agent đã phân tích", len(recent))
+k[3].metric("Sự cố (đã gộp)", len(incidents))
+k[4].metric("Chờ duyệt", n_pending)
+k[5].metric("Độ trễ TB", f"{(sum(lat) / len(lat) / 1000):.1f}s" if lat else "—")
+if D["online"] and D.get("prefilter") == {}:
+    st.caption("Agent đang chạy bản API chưa có /prefilter/recent — khởi động lại uvicorn để nạp code mới.")
+
+tabs = st.tabs(["LUỒNG CẢNH BÁO", "SỰ CỐ & CHUỖI ATT&CK", "ĐIỀU TRA ALERT", f"HÀNG CHỜ DUYỆT ({n_pending})",
+                "PHÒNG THỦ & TOÀN VẸN", "SO SÁNH OFF ‖ FULL", "PHÁT LẠI ALERT"])
+
+
+# ───────────────────────────────────────────────────────────────────
+# 1. LUỒNG CẢNH BÁO
+# ───────────────────────────────────────────────────────────────────
+with tabs[0]:
+    lbl("Mọi alert theo thời gian (mới nhất trên cùng) — gồm cả alert bị prefilter DROP")
+    df = build_feed(D)
+    if df.empty:
+        st.info("Chưa có alert nào. Gửi alert từ Splunk (bridge) hoặc dùng tab PHÁT LẠI ALERT.")
+    else:
+        st.dataframe(df, use_container_width=True, hide_index=True, height=min(560, 38 + 35 * len(df)))
+        st.caption("Prefilter: `rule` = làn luật (web/endpoint: gộp trùng + nhiễu kỹ thuật); `ml` = alert mạng được "
+                   "Random Forest chấm; `dedup` = bản trùng. Quyết định: LLM chỉ chọn GIỮ / NÂNG / HẠ so với mức luật; "
+                   "\"→ R1 ↑CRITICAL\" nghĩa là luật chuỗi tactic ATT&CK (tất định) đã nâng mức sàn, thắng ý kiến LLM. "
+                   "Chi tiết từng bước ở tab ĐIỀU TRA ALERT.")
+
+
+# ───────────────────────────────────────────────────────────────────
+# 2. SỰ CỐ & CHUỖI ATT&CK
+# ───────────────────────────────────────────────────────────────────
+with tabs[1]:
+    lbl("Mỗi sự cố = các alert Correlator đã gộp theo thực thể · cột = tactic ATT&CK theo thứ tự ma trận Enterprise")
+    groups: dict = {}
+    for e in recent:
+        groups.setdefault(e.get("incident_id") or "?", []).append(e)
+    if not groups:
+        st.info("Chưa có sự cố.")
+    for inc, evs in sorted(groups.items(), key=lambda kv: max(x.get("received_at", "") for x in kv[1]),
+                           reverse=True):
+        evs = sorted(evs, key=lambda x: x.get("received_at", ""))
+        top = max((str(x.get("severity", "LOW")).upper() for x in evs), key=lambda s_: SEV_ORDER.get(s_, -1))
+        techs = []
+        for x in evs:
+            for t_ in (rule_of(x).get("attack_ids") or x.get("mitre_techniques") or []):
+                if t_ not in techs:
+                    techs.append(t_)
+        hosts = sorted({trusted(x).get("host") for x in evs if trusted(x).get("host")})
+        ips = sorted({ip for x in evs for ip in (trusted(x).get("src_ip"), trusted(x).get("dest_ip")) if ip})
+        # cột tactic: theo thứ tự ma trận ATT&CK (thiếu dữ liệu ATT&CK → theo thứ tự xuất hiện)
+        tac_of = {id(x): event_tactic(x) for x in evs}
+        order: list = []
+        for x in evs:
+            nm = tac_of[id(x)][0] or "Không có mã ATT&CK"
+            if nm not in order:
+                order.append(nm)
+        _first = {nm: i_ for i_, nm in enumerate(order)}
+        order.sort(key=lambda nm: (TACTIC_ORDER.get(nm, 99), _first[nm]))
+        first_esc = next((x for x in evs if escalation_of(x)), None)
+        n_pend = sum(1 for x in evs if pending_undecided(x))
+        with st.container(border=True):
+            st.markdown(
+                f"<div style='display:flex;justify-content:space-between;align-items:center'>"
+                f"<div><span class='mono' style='color:#58a6ff;font-size:0.9rem'>SỰ CỐ {esc(inc)}</span> "
+                f"&nbsp;{sev_chip(top)} {chip(f'{len(evs)} alert', '#8b949e')} "
+                f"{chip(f'{len(order)} tactic', '#d2a8ff')}"
+                + (chip(f'{n_pend} chờ duyệt', '#d29922') if n_pend else "") +
+                f"</div><div class='mono' style='color:#6e7681;font-size:0.68rem'>"
+                f"{esc(hhmmss(evs[0].get('received_at')))} → {esc(hhmmss(evs[-1].get('received_at')))}</div></div>"
+                f"<div class='kv' style='margin-top:4px'><span class='k'>Máy</span>{esc(', '.join(hosts) or '—')}"
+                f"<br><span class='k'>IP liên quan</span>{esc(', '.join(ips) or '—')}"
+                f"<br><span class='k'>Kỹ thuật</span>{''.join(chip(t_, '#58a6ff') for t_ in techs) or '—'}</div>",
+                unsafe_allow_html=True)
+            if first_esc:
+                fe = escalation_of(first_esc)
+                st.markdown(
+                    f"<div class='kv' style='border-left:3px solid #f85149;padding-left:10px;margin:6px 0'>"
+                    f"⚡ <b style='color:#f85149'>{esc(fe.get('rule'))}</b> kích hoạt lúc "
+                    f"<b>{esc(hhmmss(first_esc.get('received_at')))}</b> ở alert "
+                    f"<b>{esc(rule_name(first_esc))}</b>: {esc(fe.get('why'))} → mức sàn "
+                    f"{sev_chip(str(fe.get('to')).upper())} cho các alert từ đó trở đi. "
+                    f"<span style='color:#6e7681'>Luật tất định, không phải ý kiến LLM; alert trước đó giữ mức "
+                    f"lúc phân tích (không sửa ngược quá khứ).</span></div>", unsafe_allow_html=True)
+            # làn tactic
+            cols_html = []
+            for nm in order:
+                ta = next((tac_of[id(x)][1] for x in evs if tac_of[id(x)][0] == nm), "")
+                cards = ""
+                for x in evs:
+                    if (tac_of[id(x)][0] or "Không có mã ATT&CK") != nm:
+                        continue
+                    sv = str(x.get("severity", "?")).upper()
+                    c = SEV_COLORS.get(sv, "#8b949e")
+                    ex = escalation_of(x)
+                    act = ACTION_LABEL.get(str(x.get("action_taken", "")).upper(), (x.get("action_taken"), ""))[0]
+                    cards += (f"<div class='ev' style='border-left-color:{c}'>"
+                              f"<div class='mono' style='font-size:0.6rem;color:#6e7681'>{esc(hhmmss(x.get('received_at')))}"
+                              + (f" · <span style='color:#f85149'>⚡{esc(ex.get('rule'))}</span>" if ex else "") +
+                              f"</div><div style='font-size:0.74rem;color:#e6edf3'>{esc(rule_name(x))}</div>"
+                              f"<div class='mono' style='font-size:0.6rem;color:#58a6ff'>"
+                              f"{esc(', '.join(rule_of(x).get('attack_ids') or []))}</div>"
+                              f"<div class='mono' style='font-size:0.62rem;color:{c}'>{esc(sv)} · {esc(act)}</div></div>")
+                cols_html.append(f"<div class='col'><div class='hd'>{esc(nm)} {esc(ta)}</div>{cards}</div>")
+            st.markdown(f"<div class='lane' style='grid-template-columns:repeat({len(cols_html)},minmax(160px,1fr))'>"
+                        + "".join(cols_html) + "</div>", unsafe_allow_html=True)
+            # bảng từng alert: ai quyết định cái gì
+            tbl = []
+            for x in evs:
+                v_ = x.get("raw_ai_verdict") or {}
+                ex = escalation_of(x)
+                hd = x.get("human_decision") or {}
+                tbl.append({
+                    "Thời gian": hhmmss(x.get("received_at")),
+                    "Tactic": tac_of[id(x)][0] or "—",
+                    "Luật": rule_name(x),
+                    "Mức luật": str(rule_of(x).get("level") or "—").upper(),
+                    "LLM chọn": DECISION_LABEL.get(v_.get("decision"), (v_.get("decision") or "—", ""))[0],
+                    "Nâng mức ATT&CK": f"{ex.get('rule')}: {str(ex.get('from')).upper()} → {str(ex.get('to')).upper()}" if ex else "—",
+                    "Mức cuối": str(x.get("severity", "?")).upper(),
+                    "Hành động": ACTION_LABEL.get(str(x.get("action_taken", "")).upper(), (x.get("action_taken"), ""))[0],
+                    "Người duyệt": {"approve": "✔ duyệt", "reject": "✖ từ chối"}.get(hd.get("decision"), "—"),
+                })
+            with st.expander("Bảng chi tiết từng alert của sự cố (ai quyết định cái gì)"):
+                st.dataframe(pd.DataFrame(tbl), use_container_width=True, hide_index=True)
+            render_attack_block(evs[-1])
+
+
+# ───────────────────────────────────────────────────────────────────
+# 3. ĐIỀU TRA ALERT
+# ───────────────────────────────────────────────────────────────────
+def render_decision_buttons(e: dict, key: str, agent: str):
+    tid = (e.get("ticket") or {}).get("ticket_id")
+    hd = e.get("human_decision")
+    if hd:
+        color = "#3fb950" if hd.get("decision") == "approve" else "#8b949e"
+        st.markdown(f"<div class='kv'>{chip('ĐÃ DUYỆT' if hd.get('decision') == 'approve' else 'ĐÃ TỪ CHỐI', color)}"
+                    f" bởi <b>{esc(hd.get('operator'))}</b> lúc {esc(hhmmss(hd.get('time')))}<br>"
+                    f"<span class='k'>Kết quả</span>{esc(hd.get('outcome'))}</div>", unsafe_allow_html=True)
+        return
+    if not pending_undecided(e) or not tid:
+        return
+    b1, b2 = st.columns(2)
+    if b1.button("✔ Duyệt (SIMULATION)", key=f"ap_{key}", type="primary", use_container_width=True):
+        code, res = api_post(agent, "/soar/decision", {"ticket_id": tid, "decision": "approve",
+                                                      "operator": st.session_state.get("operator", "analyst")},
+                             internal=True)
+        (st.success if code == 200 else st.error)(res.get("outcome") or res.get("detail"))
+        time.sleep(0.8)
+        st.rerun()
+    if b2.button("✖ Từ chối", key=f"rj_{key}", use_container_width=True):
+        code, res = api_post(agent, "/soar/decision", {"ticket_id": tid, "decision": "reject",
+                                                      "operator": st.session_state.get("operator", "analyst")},
+                             internal=True)
+        (st.success if code == 200 else st.error)(res.get("outcome") or res.get("detail"))
+        time.sleep(0.8)
+        st.rerun()
+
+
+def render_investigation(e: dict, key: str, agent: str, compact: bool = False):
+    t = trusted(e)
+    u = (e.get("ticket") or {}).get("untrusted") or {}
+    v = e.get("raw_ai_verdict") or {}
+    notes = e.get("investigation_notes") or []
+    rag = e.get("rag") or {}
+    rl = str(rule_of(e).get("level") or "?").upper()
+    sev = str(e.get("severity", "?")).upper()
+    dec_label, dec_color = DECISION_LABEL.get(v.get("decision"), (v.get("decision") or "—", "#8b949e"))
+    fired = layers_fired(notes)
+
+    if e.get("llm_error"):
+        st.error(f"LLM lỗi ở alert này — mức/hành động chỉ là giá trị lấp chỗ. {e.get('llm_error_detail', '')[:200]}")
+
+    lbl("Chuỗi quyết định — từ mức luật tới hành động")
+    st.markdown(decision_flow_html(e), unsafe_allow_html=True)
+
+    if compact:   # cột hẹp (so sánh off ‖ full): phán quyết trước, ticket thu gọn bên dưới
+        c_right = st.container()
+        c_left = st.expander("Ticket hai ngăn (trusted / untrusted)")
+    else:
+        c_left, c_right = st.columns([1, 1.15], gap="large")
+    with c_left:
+        lbl("Ngăn TRUSTED — dữ liệu đã kiểm (luật Splunk, làm giàu tất định)")
+        a_dest = (t.get("asset") or {}).get("dest") or {}
+        a_src = (t.get("asset") or {}).get("src") or {}
+        ti = ((t.get("threat_intel") or {}).get("src_ip") or {})
+        hist = t.get("history") or {}
+
+        def asset_txt(a):
+            if not a:
+                return "—"
+            return (f"{a.get('name', '?')} · {a.get('role', '?')} · {a.get('criticality', '?')}"
+                    f" · tự chặn: {'có' if a.get('auto_block_allowed') else 'KHÔNG'}")
+        st.markdown(
+            f"<div class='kv'><span class='k'>Luật</span>{esc(rule_of(e).get('name'))}"
+            f"<br><span class='k'>Mức luật</span>{sev_chip(rl)}"
+            f"<br><span class='k'>ATT&amp;CK</span>{''.join(chip(x, '#58a6ff') for x in rule_of(e).get('attack_ids') or []) or '—'}"
+            f"<br><span class='k'>Bề mặt</span>{esc(t.get('surface'))}"
+            f"<br><span class='k'>Nguồn → đích</span>{esc(entity_line(t))}"
+            f"<br><span class='k'>Máy (host)</span>{esc(t.get('host') or '—')}"
+            f"<br><span class='k'>Tài sản đích</span>{esc(asset_txt(a_dest))}"
+            f"<br><span class='k'>Tài sản nguồn</span>{esc(asset_txt(a_src))}"
+            f"<br><span class='k'>Tình báo IP nguồn</span>{esc(ti.get('verdict') or '—')}"
+            f"<br><span class='k'>Lịch sử</span>{esc(hist.get('summary') or str(hist.get('event_count', 0)) + ' sự kiện')}"
+            f"<br><span class='k'>Sự cố</span>{esc(e.get('incident_id'))} · {esc(t.get('kill_chain_stage') or '')}"
+            f"</div>", unsafe_allow_html=True)
+        lbl("Ngăn UNTRUSTED — trường gốc của log (kẻ tấn công kiểm soát được)")
+        st.caption("Chỉ đưa vào prompt trong khối datamarking (Lớp 2); không bao giờ là chỉ thị.")
+        st.json(u.get("fields") or {}, expanded=False)
+        if u.get("contract_values_failed_check"):
+            st.warning("Có giá trị hợp đồng không qua kiểm định dạng → bị chuyển sang untrusted: "
+                       + ", ".join(map(str, u["contract_values_failed_check"].keys())))
+
+    with c_right:
+        lbl("Phán quyết của tác tử")
+        st.markdown(
+            f"<div style='display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:8px'>"
+            f"<div class='kv'><span style='color:#6e7681'>Mức luật</span><br>{sev_chip(rl)}</div>"
+            f"<div style='font-size:1.3rem;color:{dec_color}'>➜</div>"
+            f"<div class='kv'><span style='color:#6e7681'>Quyết định</span><br>{chip(dec_label, dec_color)}</div>"
+            f"<div style='font-size:1.3rem;color:#30363d'>➜</div>"
+            f"<div class='kv'><span style='color:#6e7681'>Mức cuối</span><br>{sev_chip(sev)}</div>"
+            f"<div class='kv'><span style='color:#6e7681'>Hành động</span><br>{action_chip(e.get('action_taken'))}</div>"
+            f"</div>", unsafe_allow_html=True)
+        ev_, cf_, tm_ = (f"{float(e.get('evidence_strength') or 0):.2f}", f"{float(e.get('confidence') or 0):.2f}",
+                         f"{(e.get('processing_time_ms') or 0) / 1000:.1f}s")
+        if compact:
+            st.markdown(f"<div class='kv'><span class='k'>Evidence · Conf · Thời gian</span>"
+                        f"{ev_} · {cf_} · {tm_}</div>", unsafe_allow_html=True)
+        else:
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Evidence", ev_)
+            m2.metric("Confidence", cf_)
+            m3.metric("Thời gian", tm_)
+        lbl("LLM suy luận (Llama 3.1 8B · trả lời tiếng Anh theo prompt)")
+        thought = str(v.get("thought_process") or "").strip()
+        reasoning = str(v.get("reasoning") or "").strip()
+        tac, ta = event_tactic(e)
+        st.markdown(
+            "<div class='llm'>"
+            + (f"<div class='t lbl' style='margin:0 0 2px 0'>Suy nghĩ từng bước (thought_process)</div>"
+               f"<div class='q'>{esc(thought)}</div>" if thought else "")
+            + (f"<div class='t lbl' style='margin:8px 0 2px 0'>Kết luận (reasoning)</div>"
+               f"<div class='q'>{esc(reasoning)}</div>" if reasoning and reasoning != thought else "")
+            + f"<div class='kv' style='margin-top:6px'><span class='k'>LLM tự đánh giá</span>"
+              f"{esc(str(v.get('severity') or '?').upper())} · nghi ngờ: {esc(v.get('is_suspicious'))} · "
+              f"mã: {esc(', '.join(v.get('mitre') or []) or '—')}</div>"
+            + "</div>", unsafe_allow_html=True)
+        st.caption("Mức cuối KHÔNG lấy thẳng từ LLM: LLM chỉ chọn giữ/nâng/hạ so với mức luật, mã tất định quy ra mức, "
+                   "rồi luật chuỗi tactic ATT&CK (R1/R2) có thể nâng sàn — xem chuỗi quyết định ở trên.")
+        if tac:
+            st.markdown(f"<div class='kv'><span class='k'>Tactic của alert</span>{chip(f'{tac} {ta}', '#d2a8ff')}</div>",
+                        unsafe_allow_html=True)
+
+        lbl("Phòng thủ đã can thiệp ở alert này")
+        layers = (DATA[agent]["health"] or {}).get("layers") or []
+        row = ""
+        for kk, (name, short, _) in LAYER_INFO.items():
+            if kk in fired:
+                row += chip(f"{name} · {short} ✓", "#3fb950")
+            elif kk in layers:
+                row += chip(f"{name} · bật", "#6e7681")
+            else:
+                row += chip(f"{name} · tắt", "#484f58")
+        st.markdown(row, unsafe_allow_html=True)
+        for kk, n in fired.items():
+            st.caption(f"{LAYER_INFO.get(kk, ('Lớp ' + str(kk),))[0]}: {n[:220]}")
+
+        lbl("Khối RAG (tầng truy xuất)")
+        inj_in, inj_rej = rag.get("injected_in_context") or [], rag.get("injected_rejected") or []
+        if inj_in:
+            st.error(f"Tài liệu LẠ đã lọt vào ngữ cảnh: {', '.join(map(str, inj_in))}")
+        if inj_rej:
+            st.success(f"Lớp 5 đã loại tài liệu ngoài manifest: {', '.join(map(str, inj_rej))}")
+        ctx = rag.get("context_ids") or []
+        st.markdown("".join(chip(c, "#8b949e") for c in ctx) or "<span class='kv'>—</span>",
+                    unsafe_allow_html=True)
+        if rag.get("tampered_rejected"):
+            st.error(f"Chunk gốc bị SỬA nội dung (băm không khớp manifest) — đã loại: "
+                     f"{', '.join(map(str, rag['tampered_rejected']))}")
+        if rag.get("integrity_failure"):
+            st.error(f"Lớp 5 FAIL-CLOSED ({rag['integrity_failure']}): không dùng tài liệu RAG nào.")
+
+        lbl("Chuỗi MITRE ATT&CK của sự cố & khuyến nghị")
+        render_attack_block(e)
+
+        if str(e.get("action_taken", "")).upper() == "BLOCK_PENDING" or e.get("human_decision"):
+            lbl("Người duyệt (Lớp 1 — Rule of Two)")
+            render_decision_buttons(e, key, agent)
+
+    if not compact:
+        lbl("Audit trail theo từng nút — tác tử đã làm gì, theo thứ tự")
+        render_process(e)
+        with st.expander("Audit trail dạng thô (toàn bộ ghi chú) · JSON phán quyết"):
+            st.code("\n".join(notes) or "—", language="text")
+            st.json(v)
+    else:
+        with st.expander("Audit trail theo từng nút"):
+            render_process(e)
+
+
+with tabs[2]:
+    if not recent:
+        st.info("Chưa có alert đã phân tích.")
+    else:
+        items = list(reversed(recent))
+        labels = [f"{hhmmss(x.get('received_at'))} · {rule_name(x)} · {str(x.get('severity', '?')).upper()} · "
+                  f"{(x.get('ticket') or {}).get('ticket_id', '?')}" for x in items]
+        idx = st.selectbox("Chọn alert", range(len(items)), format_func=lambda i: labels[i])
+        render_investigation(items[idx], key=f"inv_{idx}", agent=view)
+
+
+# ───────────────────────────────────────────────────────────────────
+# 4. HÀNG CHỜ DUYỆT
+# ───────────────────────────────────────────────────────────────────
+with tabs[3]:
+    lbl("Đề xuất chặn/cô lập đang chờ người duyệt — Agent chỉ ĐỀ XUẤT, con người QUYẾT")
+    pend = [e for e in reversed(recent) if pending_undecided(e)]
+    if not pend:
+        st.info("Không có đề xuất nào đang chờ.")
+    for i, e in enumerate(pend):
+        t = trusted(e)
+        v = e.get("raw_ai_verdict") or {}
+        a_dest = (t.get("asset") or {}).get("dest") or {}
+        with st.container(border=True):
+            st.markdown(
+                f"<div class='kv'>{sev_chip(e.get('severity'))} <b style='color:#e6edf3'>{esc(rule_name(e))}</b>"
+                f" · {esc(entity_line(t))} · sự cố {esc(e.get('incident_id'))} · {esc(hhmmss(e.get('received_at')))}<br>"
+                f"<span class='k'>Đề xuất</span><b style='color:#f85149'>"
+                f"{esc(effective_action(proposed_of(e), t.get('src_ip'), t.get('host')))}</b>"
+                f" <span style='color:#6e7681'>({esc(proposed_of(e))}; SOAR chỉ mô phỏng)</span><br>"
+                f"<span class='k'>Vì sao phải duyệt</span>Lớp 1 — Rule of Two: tác tử đọc dữ liệu không tin cậy nên "
+                f"không được tự chặn"
+                + (f"; tài sản {esc(a_dest.get('name'))} khai <b>không cho tự chặn</b>" if a_dest and not a_dest.get('auto_block_allowed') else "")
+                + "</div>", unsafe_allow_html=True)
+            st.markdown(decision_flow_html(e), unsafe_allow_html=True)
+            if v.get("reasoning") or v.get("thought_process"):
+                st.markdown(f"<div class='kv' style='border-left:2px solid #e3904d;padding-left:10px;line-height:1.6'>"
+                            f"<span style='color:#6e7681'>LLM:</span> {esc(v.get('reasoning') or v.get('thought_process'))}</div>",
+                            unsafe_allow_html=True)
+            render_attack_block(e)
+            render_decision_buttons(e, key=f"q_{i}", agent=view)
+    lbl("Lịch sử quyết định — mỗi dòng là một đề xuất của tác tử đã được người duyệt chốt")
+    if D["decisions"]:
+        by_tid = {(x.get("ticket") or {}).get("ticket_id"): x for x in recent}
+        hist = []
+        for d_ in reversed(D["decisions"]):
+            x = by_tid.get(d_.get("ticket_id")) or {}
+            ex = escalation_of(x) if x else None
+            hist.append({
+                "Duyệt lúc": hhmmss(d_.get("time")),
+                "Alert lúc": hhmmss(x.get("received_at")) if x else "—",
+                "Sự cố": d_.get("incident_id") or "—",
+                "Luật": rule_name(x) if x else "—",
+                "Mức cuối": str(x.get("severity", "?")).upper() if x else "—",
+                "Nâng mức": f"{ex.get('rule')} → {str(ex.get('to')).upper()}" if ex else "—",
+                "Quyết định": {"approve": "✔ duyệt", "reject": "✖ từ chối"}.get(d_.get("decision"), d_.get("decision")),
+                "Người duyệt": d_.get("operator"),
+                "Thực thi (mô phỏng)": effective_action(d_.get("proposed"), d_.get("target_ip"), d_.get("target_host")),
+                "Kết quả": d_.get("outcome"),
+            })
+        st.dataframe(pd.DataFrame(hist), use_container_width=True, hide_index=True)
+        st.caption("Alert endpoint không có IP nguồn → hành động thực thi là CÔ LẬP MÁY (giả lập), dù ma trận ứng phó "
+                   "gọi là BLOCK_IP / NETWORK_BLOCK_FULL. Mọi thực thi ở chế độ SIMULATION.")
+    else:
+        st.caption("Chưa có quyết định nào.")
+
+
+# ───────────────────────────────────────────────────────────────────
+# 5. PHÒNG THỦ & TOÀN VẸN
+# ───────────────────────────────────────────────────────────────────
+with tabs[4]:
+    lbl("Các lớp phòng thủ theo bản Agent")
+    rows = []
+    for kk, (name, short, desc) in LAYER_INFO.items():
+        r = {"Lớp": f"{name} — {short}", "Tác dụng": desc}
+        for a in AGENTS:
+            ls = DATA[a]["health"].get("layers") if DATA[a]["online"] else None
+            r[a] = "—" if ls is None else ("BẬT" if kk in ls else "tắt")
+        rows.append(r)
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    c_pf, c_int = st.columns(2, gap="large")
+    with c_pf:
+        lbl(f"Làn lọc trước (bản {view})")
+        pfe = (D.get("prefilter") or {}).get("events", [])
+        if pf_counts:
+            st.markdown("".join(chip(f"{k_}: {v_}", PF_COLORS.get(k_.split(':')[-1], "#8b949e"))
+                                for k_, v_ in sorted(pf_counts.items())), unsafe_allow_html=True)
+        ml = [p for p in pfe if p.get("lane") == "ml"]
+        if ml:
+            dfp = pd.DataFrame([{"Thời gian": hhmmss(p.get("time")), "Luật": p.get("rule_name"),
+                                 "Luồng": f"{p.get('src_ip')} → {p.get('dest_ip')}",
+                                 "p(tấn công)": p.get("prob"), "Quyết định": p.get("decision"),
+                                 "Ghi chú": p.get("reason") or ""} for p in reversed(ml)])
+            st.dataframe(dfp, use_container_width=True, hide_index=True,
+                         column_config={"p(tấn công)": st.column_config.ProgressColumn(
+                             "p(tấn công)", min_value=0.0, max_value=1.0, format="%.3f")})
+            st.caption("Ngưỡng theo chi phí 10:1: DROP nếu p < 0,091; dải bất định 0,091–0,182 → PASS_UNCERTAIN. "
+                       "Thiếu số đo luồng → PASS (không bao giờ vì thiếu dữ liệu mà bỏ alert).")
+        else:
+            st.caption("Chưa có alert mạng nào đi làn ML.")
+    with c_int:
+        lbl("Giám sát toàn vẹn kho RAG")
+        for a in AGENTS:
+            if not DATA[a]["online"]:
+                continue
+            ev, err = api_get(a, "/internal/rag/integrity-events?limit=50", internal=True)
+            st.markdown(f"<div class='kv'><b style='color:#e6edf3'>{esc(a.upper())}</b></div>",
+                        unsafe_allow_html=True)
+            if ev is None:
+                st.caption(f"Không đọc được ({err}). Bản full cần AGENT_INTERNAL_TOKEN.")
+                continue
+            if not ev.get("events"):
+                st.caption("Không có sự kiện — kho khớp manifest.")
+                continue
+            rows = []
+            for x in reversed(ev["events"]):
+                for d in x.get("docs") or []:
+                    rows.append({"Thời gian": hhmmss(x.get("time")), "Phát hiện qua": x.get("via"),
+                                 "Tài liệu": d.get("id"), "Lý do": d.get("reason"),
+                                 "source_type (tự khai)": d.get("source_type")})
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
+# ───────────────────────────────────────────────────────────────────
+# 6. SO SÁNH OFF ‖ FULL
+# ───────────────────────────────────────────────────────────────────
+with tabs[5]:
+    lbl("Cùng một alert gửi tới hai bản Agent — kịch bản tấn công vào chính tác tử")
+    if not (DATA["full"]["online"] and DATA["off"]["online"]):
+        st.info("Cần cả hai bản Agent online (full :8000 và off :8010).")
+    else:
+        def by_alert(d):
+            m = {}
+            for x in d["recent"]:
+                aid = trusted(x).get("alert_id") or rule_name(x)
+                m[aid] = x
+            return m
+        mf, mo = by_alert(DATA["full"]), by_alert(DATA["off"])
+        common = [a for a in mo if a in mf]
+        if not common:
+            st.info("Chưa có alert nào được gửi tới cả hai bản. Dùng tab PHÁT LẠI ALERT, chọn đích 'cả hai'.")
+        else:
+            pick = st.selectbox("Alert", list(reversed(common)))
+            co, cf = st.columns(2, gap="large")
+            with co:
+                st.markdown("<div class='kv'><b style='color:#f85149'>OFF — không phòng thủ</b></div>",
+                            unsafe_allow_html=True)
+                render_investigation(mo[pick], key="cmp_off", agent="off", compact=True)
+            with cf:
+                st.markdown("<div class='kv'><b style='color:#3fb950'>FULL — Lớp 1, 2, 4, 5</b></div>",
+                            unsafe_allow_html=True)
+                render_investigation(mf[pick], key="cmp_full", agent="full", compact=True)
+
+
+# ───────────────────────────────────────────────────────────────────
+# 7. PHÁT LẠI ALERT (dự phòng khi lab / Splunk trục trặc)
+# ───────────────────────────────────────────────────────────────────
+def _alert_files():
+    out = []
+    for d in (ROOT / "replay" / "demo", ROOT / "aegis-bridge" / "rules" / "base" / "samples"):
+        if d.exists():
+            out += sorted(p for p in d.rglob("*.json"))
+    return out
+
+
+def _restamp(a: dict) -> dict:
+    a = dict(a)
+    a["alert_id"] = f"replay:{a.get('alert_id', 'x')}:{uuid.uuid4().hex[:8]}"[:200]
+    a["timestamp"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return a
+
+
+with tabs[6]:
+    lbl("Gửi alert đã lưu (định dạng hợp đồng 10 trường) tới Agent — giống hệt đường Splunk bridge")
+    files = _alert_files()
+    c_a, c_b = st.columns([2, 1])
+    with c_a:
+        chosen = st.multiselect("File alert (replay/demo/ và mẫu của bridge)", files,
+                                format_func=lambda p: str(p.relative_to(ROOT)))
+        pasted = st.text_area("…hoặc dán JSON (một alert, danh sách alert, hoặc {\"alerts\": [...]})", height=120)
+    with c_b:
+        target = st.radio("Gửi tới", ["full", "off", "cả hai"], horizontal=True)
+        restamp = st.checkbox("Đổi alert_id + timestamp hiện tại", value=True,
+                              help="Để Correlator coi là sự kiện mới, gộp đúng theo thời gian thực của buổi demo.")
+        gap = st.slider("Giãn cách giữa các alert (giây)", 0, 30, 3)
+        send = st.button("▶ Gửi", type="primary", use_container_width=True, disabled=not AGENT_TOKEN)
+        if not AGENT_TOKEN:
+            st.caption("Cần AGENT_TOKEN trong môi trường để gửi.")
+    if send:
+        alerts = []
+        for p in chosen:
+            try:
+                obj = json.loads(p.read_text(encoding="utf-8"))
+                alerts += obj.get("alerts", []) if isinstance(obj, dict) and "alerts" in obj else \
+                    (obj if isinstance(obj, list) else [obj])
+            except Exception as ex:
+                st.error(f"{p.name}: {ex}")
+        if pasted.strip():
+            try:
+                obj = json.loads(pasted)
+                alerts += obj.get("alerts", []) if isinstance(obj, dict) and "alerts" in obj else \
+                    (obj if isinstance(obj, list) else [obj])
+            except Exception as ex:
+                st.error(f"JSON dán vào không hợp lệ: {ex}")
+        dests = ["full", "off"] if target == "cả hai" else [target]
+        prog = st.progress(0.0)
+        for i, a in enumerate(alerts):
+            a2 = _restamp(a) if restamp else a
+            for dst in dests:   # cùng alert_id cho cả hai bản → tab SO SÁNH ghép được
+                code, res = api_post(dst, "/ingest/alerts", {"alerts": [a2]}, agent_tok=True)
+                st.write(f"{dst}: {a2.get('rule_name')} → HTTP {code} {res.get('status', res.get('detail', ''))}")
+            prog.progress((i + 1) / max(1, len(alerts)))
+            if gap and i < len(alerts) - 1:
+                time.sleep(gap)
+        st.success(f"Đã gửi {len(alerts)} alert. Agent phân tích nền — xem kết quả ở LUỒNG CẢNH BÁO "
+                   f"(bật Tự làm mới).")
+
+
+# ═══════════════════════════════════════════════════════════════════
+if auto:
+    time.sleep(every)
+    st.rerun()

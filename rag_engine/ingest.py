@@ -32,6 +32,10 @@ from pathlib import Path
 import yaml
 
 REPO = Path(__file__).resolve().parent.parent
+import sys as _sys
+if str(REPO) not in _sys.path:
+    _sys.path.insert(0, str(REPO))
+from core import rag_manifest as _rm   # Lớp 5: ký HMAC cho manifest
 MITRE_FILE = REPO / "data" / "mitre_cti.json"
 BASE_DIR = REPO / "rules" / "base"
 LIB_DIR = REPO / "data" / "sigma_lib"
@@ -240,6 +244,8 @@ def main() -> int:
                 "sigma_source": json.loads((LIB_DIR / "_source.json").read_text(encoding="utf-8"))
                 if (LIB_DIR / "_source.json").exists() else None,
                 "docs": {d: sha(t) for d, t, _ in docs}}
+    # Lớp 5: ký HMAC-SHA256 toàn bộ manifest (chống sửa file manifest). Retriever sẽ xác minh chữ ký này.
+    manifest["signature"] = _rm.sign(manifest)
     (out / "_ingest_manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")
     print(f"[+] Xong: {db._collection.count()} tài liệu. Manifest: {out / '_ingest_manifest.json'}")
     print("[i] Bước tiếp: python tools\\make_rag_stores.py --force   (sao kho mới thành 4 kho theo profile)")

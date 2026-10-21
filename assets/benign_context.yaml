@@ -1,0 +1,41 @@
+# assets/benign_context.yaml — ALLOWLIST NGỮ CẢNH BENIGN cho luật nâng mức theo chuỗi ATT&CK (R1/R2).
+#
+# Vấn đề giải quyết: R1 (>=3 tactic) và R2 (hậu khai thác sau xâm nhập) chỉ nhìn TACTIC, không biết ai làm.
+# Admin hợp lệ đăng nhập từ xa → tạo scheduled task → nén dữ liệu có thể trải 3 tactic mà vẫn là việc bình thường.
+#
+# Cách hoạt động (core/benign_context.py — tất định, KHÔNG LLM, chỉ tra bảng này):
+#   Một sự kiện được "giải thích" bởi một mẫu khi THỎA CẢ BỐN:
+#     1. danh tính khớp: tài khoản (User) nằm trong `accounts`, hoặc máy phát động (tác nhân) nằm trong `assets`;
+#     2. tactic của sự kiện nằm trong `tactics` của mẫu (mẫu chỉ giải thích đúng những tactic mong đợi);
+#     3. (nếu mẫu có `hours_local`) sự kiện xảy ra trong khung giờ đó theo múi giờ `tz_offset_hours`;
+#     4. nguồn KHÔNG có trong threat_intel/local_iocs.yaml, và luật KHÔNG ở mức critical.
+#   Chỉ khi TẤT CẢ sự kiện (có tactic) của sự cố đều được giải thích thì R1/R2 mới bị BỎ QUA.
+#   Chỉ cần MỘT sự kiện lạ (tài khoản khác, tactic ngoài danh sách, ngoài giờ, IP có tiền án) là R1/R2 áp lại như cũ.
+#
+# Giới hạn (ghi vào báo cáo): đây là NIỀM TIN vào danh tính. Tài khoản admin/backup bị chiếm vẫn làm được đúng
+# những tactic + khung giờ ở đây mà không bị nâng mức. Mẫu càng hẹp (ít tactic, giờ cụ thể) thì khoảng hở càng nhỏ.
+# Bỏ qua R1/R2 KHÔNG hạ mức: alert vẫn đi qua Analyzer + mức luật như bình thường.
+# Sửa file là hiệu lực ngay ở alert kế tiếp (tự nạp lại). Sai/thiếu file → không có mẫu nào → R1/R2 chạy nguyên vẹn.
+# Tắt toàn bộ: BENIGN_CONTEXT_ENABLED=0.
+#
+# Mẫu dưới đây bám đúng mô tả trong assets/inventory.yaml (ghi chú tài khoản/máy); không viết theo bộ kịch bản đo.
+
+tz_offset_hours: 7          # múi giờ của khung giờ bên dưới (lab ở UTC+7)
+
+patterns:
+  - id: BC-ITSCAN
+    description: "Máy quét lỗ hổng IT và bộ cân bằng tải/giám sát: quét cổng, dò dịch vụ định kỳ"
+    assets: [it-scanner-01, lb-monitor-01]
+    tactics: [reconnaissance, discovery]
+
+  - id: BC-BACKUP
+    description: "Tài khoản dịch vụ backup: chạy script sao lưu, tạo scheduled task ban đêm, không đăng nhập tương tác"
+    accounts: ['DOMAIN\backup']
+    tactics: [execution, persistence, collection, discovery]
+    hours_local: ["00:00", "05:00"]
+
+  - id: BC-ADMIN
+    description: "Quản trị hệ thống trong giờ hành chính: whoami, PsExec, PowerShell, công cụ quản trị"
+    accounts: ['DOMAIN\admin']
+    tactics: [execution, discovery, lateral-movement, persistence]
+    hours_local: ["08:00", "18:00"]

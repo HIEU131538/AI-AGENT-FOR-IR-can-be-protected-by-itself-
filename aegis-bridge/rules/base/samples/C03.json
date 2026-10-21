@@ -1,0 +1,33 @@
+{
+  "alert_id": "scheduler__pinktryni__search__RMD5ace8898d54d6413c_at_1791020100_19732:0",
+  "rule_name": "AegisSOC - Suricata Network Scan Alert",
+  "rule_level": "medium",
+  "attack_ids": [
+    "T1046",
+    "T1595"
+  ],
+  "surface": "network",
+  "timestamp": "2026-10-03T09:33:00Z",
+  "src_ip": "192.168.10.128",
+  "dest_ip": "192.168.10.135",
+  "dest_port": 22,
+  "host": "sensor-net-01",
+  "fields": {
+    "alert.action": "allowed",
+    "alert.category": "AegisSOC Test",
+    "alert.gid": "1",
+    "alert.rev": "1",
+    "alert.severity": "2",
+    "alert.signature": "ET SCAN AegisSOC C03 Test Network Scan",
+    "alert.signature_id": "92030001",
+    "app_proto": "ssh",
+    "event_type": "alert",
+    "flow_id": "92030001",
+    "in_iface": "eth1",
+    "proto": "TCP",
+    "signature": "ET SCAN AegisSOC C03 Test Network Scan",
+    "src_port": "49153",
+    "timestamp": "2026-10-03T16:33:00.000000+0700"
+  },
+  "summary": "AegisSOC - Suricata Network Scan Alert | 192.168.10.128 -> 192.168.10.135:22 | host=sensor-net-01"
+}

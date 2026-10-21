@@ -2,6 +2,7 @@ import logging
 import os
 import requests  # B4.1: /health kiểm Ollama
 import secrets
+import ipaddress
 import time
 import threading
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, Query, Request, Response
@@ -48,6 +49,7 @@ from agent.nodes.responder import (
     get_soar_mode as _get_soar_mode,
 )
 from api.alert_adapter import Alert, to_legacy_raw_log  # B1: hợp đồng alert + giàn giáo alert → raw_log
+from agent.nodes.prefilter import run_prefilter, reset_state as _prefilter_reset  # B7: làn lọc trước (ML + luật + gộp trùng)
 from core import profile as defense_profile  # B4: công tắc DEFENSE_PROFILE (off / l1 / l12 / full)
 
 for _msg in defense_profile.startup_messages():
@@ -84,9 +86,12 @@ else:
 # ==========================================
 app = FastAPI(title="KMA SOC AI Agent API", version="2.3")
 
+# Lớp 4 (Ngày 4): thu hẹp CORS. Bật (full) → chỉ localhost/dashboard; tắt (off/l1/l12) → giữ "*" như cũ (baseline).
+_CORS_ORIGINS = (["http://127.0.0.1:8501", "http://localhost:8501", "http://127.0.0.1:3000"]
+                 if defense_profile.layer_enabled(4) else ["*"])
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # friend's system on Tailscale
+    allow_origins=_CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -107,8 +112,105 @@ _CHROMA_MONITOR_INTERVAL = 30          # giây
 _KNOWN_DOC_IDS: set = set()            # track IDs đã biết
 _TRUSTED_SOURCE_TYPES = {"admin_sigma_rule", "mitre_framework"}
 
+# B8: nhật ký sự kiện toàn vẹn kho (xem qua GET /internal/rag/integrity-events)
+from collections import deque as _deque
+RAG_INTEGRITY_EVENTS = _deque(maxlen=200)
+
+
+def _integrity_suspicious(doc_ids, metas: dict) -> list:
+    """B8 — tiêu chí 'đáng ngờ' cho tài liệu mới trong kho tri thức.
+    - Bật Lớp 5 và manifest ĐÃ XÁC MINH: đáng ngờ ⇔ KHÔNG nằm trong manifest đã ký (bỏ qua metadata tự khai,
+      vì metadata giả mạo được — đúng lỗ hổng Bảng 3 chứng minh).
+    - B8.1: bật Lớp 5 mà manifest KHÔNG xác minh được (thiếu/chưa ký/sai chữ ký/khoá dev) → mọi tài liệu mới
+      đều đáng ngờ (không có gì để đối chiếu).
+    - Ngược lại (cấu hình off/l1/l12): giữ tiêu chí metadata cũ để đường cơ sở không đổi."""
+    known = getattr(retriever_instance, "_manifest_docs", None) or {}
+    l5 = defense_profile.layer_enabled(5)
+    trusted = getattr(retriever_instance, "manifest_trusted", bool(known))
+    problem = getattr(retriever_instance, "_manifest_problem", None)
+    out = []
+    for did in doc_ids:
+        meta = metas.get(did) or {}
+        src, inj, dtype = meta.get("source_type", ""), meta.get("injected_by", ""), meta.get("document_type", "")
+        if l5 and not trusted:
+            bad, reason = True, f"manifest_untrusted:{problem}"
+        elif l5 and known:
+            bad, reason = did not in known, "not_in_signed_manifest"
+        else:
+            bad = (src not in _TRUSTED_SOURCE_TYPES
+                   or inj not in (None, "", "sigma_ingest", "mitre_ingest", "admin_loader")
+                   or dtype in ("policy_update", "sync_update"))
+            reason = "untrusted_metadata"
+        if bad:
+            out.append({"id": did, "reason": reason, "source_type": src, "injected_by": inj,
+                        "document_type": dtype, "trust_score": meta.get("trust_score", 0),
+                        "source_ip": meta.get("source_ip", "N/A")})
+    return out
+
+
+def _record_integrity_event(suspicious: list, via: str):
+    ev = {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "via": via,
+          "profile": defense_profile.PROFILE, "docs": suspicious}
+    RAG_INTEGRITY_EVENTS.append(ev)
+    logger.warning(f"[RAGIntegrity] {via}: {len(suspicious)} tài liệu đáng ngờ "
+                   f"{[(d['id'], d['reason']) for d in suspicious]}")
+
+
+def _push_integrity_synthetic(suspicious: list, what: str):
+    """Đẩy một sự kiện an ninh tổng hợp 'rag_integrity_violation' vào chính pipeline của Agent."""
+    synthetic_log = {
+        "timestamp":  time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "source_ip":  suspicious[0].get("source_ip", "N/A"),
+        "event_type": "rag_integrity_violation",
+        "message":    (f"ChromaDB RAG integrity violation ({what}): {len(suspicious)} document(s). "
+                       f"IDs: {[d['id'] for d in suspicious][:20]}. "
+                       f"Reasons: {sorted({d['reason'] for d in suspicious})}."),
+        "suspicious_docs": suspicious[:20],
+        "severity_hint":   "critical",
+    }
+    try:
+        analyze_log(LogInput(raw_log=synthetic_log))   # gọi thẳng hàm trong module (không import vòng)
+        logger.info("[ChromaMonitor] Synthetic event đã được đẩy vào pipeline.")
+    except Exception as push_err:
+        logger.error(f"[ChromaMonitor] Không thể push synthetic event: {push_err}")
+
+
+# B8.1: kiểm TOÀN BỘ kho so với manifest (nội dung bị sửa / tài liệu bị xoá) — nặng hơn quét ID nên chạy thưa
+_AUDIT_EVERY_POLLS = int(os.getenv("RAG_AUDIT_EVERY_POLLS", "10"))   # 10 × 30 s = 5 phút
+_REPORTED_AUDIT: set = set()                                         # (doc_id, reason) đã báo — không báo lặp
+
+
+def _audit_store(db) -> list:
+    """Chỉ chạy khi bật Lớp 5 và manifest đã xác minh. Trả danh sách vi phạm MỚI (chưa báo)."""
+    if not (defense_profile.layer_enabled(5) and getattr(retriever_instance, "manifest_trusted", False)):
+        return []
+    from core import rag_manifest as _rm
+    hashes = getattr(retriever_instance, "_manifest_hash", {}) or {}
+    with _chroma_lock:
+        got = db.get(include=["documents"])
+    present = dict(zip(got.get("ids", []), got.get("documents", [])))
+    found = []
+    for did, h in hashes.items():
+        if did not in present:
+            found.append({"id": did, "reason": "doc_deleted"})
+        elif _rm.sha(present[did]) != h:
+            found.append({"id": did, "reason": "content_modified"})
+    for did in sorted(getattr(retriever_instance, "hash_mismatch", set())):   # bị loại lúc truy xuất
+        found.append({"id": did, "reason": "content_modified"})
+    new = []
+    for f in found:
+        k = (f["id"], f["reason"])
+        if k not in _REPORTED_AUDIT:
+            _REPORTED_AUDIT.add(k)
+            new.append({**f, "source_type": "", "injected_by": "", "document_type": "", "trust_score": 0,
+                        "source_ip": "N/A"})
+    return new
+
+
 def _chroma_monitor_loop():
-    """Background thread: phát hiện document lạ inject vào ChromaDB.
+    """Background thread: giám sát toàn vẹn kho ChromaDB (vế PHÁT HIỆN của Lớp 5).
+    - mỗi 30 s: tài liệu MỚI (so ID) → kiểm tiêu chí _integrity_suspicious;
+    - B8.1, mỗi RAG_AUDIT_EVERY_POLLS vòng (và lúc khởi động): nội dung bị SỬA, tài liệu bị XOÁ so với manifest.
     Dùng retriever_instance.db (PersistentClient duy nhất) + _chroma_lock để serialize.
     """
     db = retriever_instance.db
@@ -121,12 +223,31 @@ def _chroma_monitor_loop():
         for doc_id in all_existing.get("ids", []):
             _KNOWN_DOC_IDS.add(doc_id)
         logger.info(f"[ChromaMonitor] Baseline: {len(_KNOWN_DOC_IDS)} documents tin cậy.")
+        if defense_profile.layer_enabled(5):
+            if not getattr(retriever_instance, "manifest_trusted", True):
+                _record_integrity_event([{"id": "(manifest)", "reason": getattr(retriever_instance, "_manifest_problem", "?"),
+                                          "source_type": "", "injected_by": "", "document_type": "",
+                                          "trust_score": 0, "source_ip": "N/A"}], "startup_baseline")
+            else:
+                _pre = _integrity_suspicious(list(_KNOWN_DOC_IDS), {})
+                _pre += _audit_store(db)
+                if _pre:
+                    _record_integrity_event(_pre, "startup_baseline")
     except Exception as e:
         logger.warning(f"[ChromaMonitor] Không thể lấy baseline: {e}")
 
+    polls = 0
     while True:
         time.sleep(_CHROMA_MONITOR_INTERVAL)
+        polls += 1
         try:
+            # B8.1: kiểm toàn bộ kho định kỳ (nội dung bị sửa / tài liệu bị xoá)
+            if _AUDIT_EVERY_POLLS > 0 and polls % _AUDIT_EVERY_POLLS == 0:
+                audit = _audit_store(db)
+                if audit:
+                    _record_integrity_event(audit, "monitor_audit")
+                    _push_integrity_synthetic(audit, "content modified / deleted vs signed manifest")
+
             # Bước 1: fetch IDs (nhanh) trong lock
             with _chroma_lock:
                 id_result   = db.get(include=[])
@@ -145,50 +266,14 @@ def _chroma_monitor_loop():
                 )
             }
 
-            # Có document mới — kiểm tra xem có đáng ngờ không
-            suspicious_new = []
+            # Có document mới — kiểm tra xem có đáng ngờ không (B8: manifest khi bật Lớp 5)
+            suspicious_new = _integrity_suspicious(list(new_ids), current_metas)
             for did in new_ids:
-                meta  = current_metas.get(did, {})
-                src   = meta.get("source_type", "")
-                inj   = meta.get("injected_by", "")
-                dtype = meta.get("document_type", "")
-                suspicious = (
-                    src not in _TRUSTED_SOURCE_TYPES
-                    or inj not in (None, "", "sigma_ingest", "mitre_ingest", "admin_loader")
-                    or dtype in ("policy_update", "sync_update")
-                )
-                if suspicious:
-                    suspicious_new.append({"id": did, "source_type": src,
-                                           "injected_by": inj, "document_type": dtype,
-                                           "trust_score": meta.get("trust_score", 0),
-                                           "source_ip": meta.get("source_ip", "N/A")})
                 _KNOWN_DOC_IDS.add(did)  # đánh dấu đã biết dù suspicious
 
             if suspicious_new:
-                logger.warning(
-                    f"[ChromaMonitor] PHÁT HIỆN {len(suspicious_new)} document nghi ngờ: {suspicious_new}"
-                )
-                # Tạo synthetic security event → đẩy vào pipeline
-                synthetic_log = {
-                    "timestamp":  time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    "source_ip":  suspicious_new[0].get("source_ip", "N/A"),
-                    "event_type": "rag_integrity_violation",
-                    "message":    (
-                        f"ChromaDB RAG Poisoning detected: {len(suspicious_new)} "
-                        f"unauthorized document(s) injected. "
-                        f"IDs: {[d['id'] for d in suspicious_new]}. "
-                        f"Sources: {[d['source_type'] for d in suspicious_new]}."
-                    ),
-                    "suspicious_docs": suspicious_new,
-                    "severity_hint":   "critical",
-                }
-                try:
-                    # Gọi trực tiếp hàm trong module này (không import vòng)
-                    _synthetic_input = LogInput(raw_log=synthetic_log)
-                    analyze_log(_synthetic_input)
-                    logger.info("[ChromaMonitor] Synthetic event đã được đẩy vào pipeline.")
-                except Exception as push_err:
-                    logger.error(f"[ChromaMonitor] Không thể push synthetic event: {push_err}")
+                _record_integrity_event(suspicious_new, "monitor_poll")
+                _push_integrity_synthetic(suspicious_new, "unauthorized document(s) injected")
 
         except Exception as poll_err:
             logger.warning(f"[ChromaMonitor] Lỗi poll: {poll_err}")
@@ -210,6 +295,11 @@ GLOBAL_INCIDENT_STATS = {
 RECENT_ANALYSIS_RESULTS: List[Dict[str, Any]] = []
 MAX_RECENT_RESULTS = 50
 
+# Dashboard (04/10): nhật ký làn lọc trước — MỌI verdict, kể cả DROP (DROP không qua LLM nên không có trong /recent)
+RECENT_PREFILTER = _deque(maxlen=200)
+# Dashboard (04/10): quyết định của người duyệt cho đề xuất BLOCK_PENDING (Lớp 1). SOAR luôn SIMULATION.
+SOAR_DECISIONS = _deque(maxlen=200)
+
 # IP ACTIVITY LOG: track mọi IP xuất hiện (kể cả noise/clean-filtered)
 # Đảm bảo IP đã từng thấy trong batch không bị clean-filter lần 2 → luôn vào LLM
 IP_ACTIVITY_LOG: Dict[str, int] = {}
@@ -225,6 +315,7 @@ class LogInput(BaseModel):
     raw_log: Dict[str, Any] = Field(..., description="Cục Log JSON từ SIEM/Dashboard")
     # B1: alert gốc (chỉ có khi đi qua /ingest/alerts). /analyze cũ không gửi → None.
     alert: Optional[Dict[str, Any]] = Field(default=None, description="Alert gốc theo hợp đồng Splunk")
+    prefilter: Optional[Dict[str, Any]] = Field(default=None, description="B7: verdict làn ML prefilter")
 
 class BatchLogInput(BaseModel):
     logs: List[Dict[str, Any]] = Field(..., description="Danh sách log JSON theo thứ tự thời gian")
@@ -251,6 +342,11 @@ class AnalysisResponse(BaseModel):
     llm_error_detail: str = ""
     # B5: ticket hai ngăn mà Analyzer/Reflection đã đọc — để truy ngược mỗi quyết định SOAR về đúng dữ liệu LLM thấy
     ticket: Dict[str, Any] = Field(default_factory=dict)
+    # Ngày 5 (Lớp 5): khối toàn vẹn kho RAG — bộ đo đầu độc RAG (Bảng 3) đọc trường này
+    rag: Dict[str, Any] = Field(default_factory=dict)
+    # B10: chuỗi ATT&CK của sự cố (tactic, kỹ thuật, luật nâng mức) + khuyến nghị mitigation ATT&CK
+    attack_chain: Dict[str, Any] = Field(default_factory=dict)
+    mitigations: List[Dict[str, Any]] = Field(default_factory=list)
 
 # ==========================================
 # STARTUP: KHỞI ĐỘNG BACKGROUND MONITOR
@@ -269,7 +365,9 @@ def start_chroma_monitor():
 def health():
     # B4: cho biết bản Agent này là profile nào, bật lớp nào, dùng kho RAG nào
     # B4.1: thêm "llm" — Agent có gọi được Ollama không (kiểm lại mỗi lần gọi /health)
-    return {"status": "healthy", **defense_profile.describe(), "llm": _ollama_status()}
+    _rag = {"manifest_trusted": getattr(retriever_instance, "manifest_trusted", None),
+            "problem": getattr(retriever_instance, "_manifest_problem", None)}   # B8.1
+    return {"status": "healthy", **defense_profile.describe(), "llm": _ollama_status(), "rag_integrity": _rag}
 
 @app.get("/stats")
 def stats():
@@ -309,7 +407,10 @@ def reset_memory():
 
     GLOBAL_TIMELINE_MEMORY.clear()
     RECENT_ANALYSIS_RESULTS.clear()
+    RECENT_PREFILTER.clear()
+    SOAR_DECISIONS.clear()
     IP_ACTIVITY_LOG.clear()
+    _prefilter_reset()           # trí nhớ gộp trùng của prefilter
     _IP_HIGH_COUNT.clear()
     _SOAR_EXECUTED_IPS.clear()
     GLOBAL_INCIDENT_STATS = {
@@ -351,6 +452,7 @@ def _analyze_log_impl(payload: LogInput):
         initial_state = {
             "raw_log": payload.raw_log,
             "alert": payload.alert or {},   # B1: alert gốc cho làm giàu/ticket (Ngày 2–3)
+            "prefilter": payload.prefilter or {},   # B7: verdict làn ML (ghi vào ticket.trusted)
             "investigation_notes": ["API: Đã tiếp nhận Log."],
             "attack_timeline": GLOBAL_TIMELINE_MEMORY
         }
@@ -530,6 +632,9 @@ def _analyze_log_impl(payload: LogInput):
             llm_error=bool(final_state.get("llm_error")),                  # B4.1
             llm_error_detail=final_state.get("llm_error_detail") or "",
             ticket=final_state.get("ticket") or {},                        # B5
+            rag=final_state.get("rag") or {},                              # Ngày 5 (Lớp 5)
+            attack_chain=final_state.get("attack_chain") or {},            # B10
+            mitigations=final_state.get("mitigations") or [],              # B10
         )
 
         # Lưu vào Live Feed buffer — MỌI log qua LLM đều được ghi (kể cả từ /batch)
@@ -731,6 +836,20 @@ async def _log_rejected_alerts(request: Request, exc: RequestValidationError):
     return await request_validation_exception_handler(request, exc)
 
 
+def require_internal_token(x_internal_token: Optional[str] = Header(default=None)):
+    """Lớp 4: khoá các endpoint /internal/*. Chỉ kiểm khi Lớp 4 BẬT (full).
+    Off/l1/l12 giữ MỞ để bộ đo đầu độc RAG chạy được cơ chế cũ (Bảng 3 cột 'cũ')."""
+    if not defense_profile.layer_enabled(4):
+        return
+    expected = os.getenv("AGENT_INTERNAL_TOKEN", "")
+    if not expected:
+        raise HTTPException(status_code=503, detail="Server chưa cấu hình AGENT_INTERNAL_TOKEN.")
+    if not x_internal_token or not secrets.compare_digest(
+        x_internal_token.strip().encode("utf-8"), expected.encode("utf-8")
+    ):
+        raise HTTPException(status_code=401, detail="Internal token không hợp lệ.")
+
+
 def require_agent_token(authorization: Optional[str] = Header(default=None)):
     """
     Kiểm Bearer token. Chạy TRƯỚC khi đọc nội dung alert.
@@ -758,9 +877,30 @@ def _process_one_alert(alert: Alert) -> Dict[str, Any]:
     # ──────────────────────────────────────────────────────────────────────
     # Giàn giáo cho 2 trạm tất định cũ (Extractor, Correlator) vẫn đọc raw_log. Từ B5, Analyzer/Reflection
     # KHÔNG đọc raw_log nữa mà đọc ticket (core/ticket.py) dựng từ alert gốc bên dưới.
+    # B7: LÀN LỌC TRƯỚC — chặn sớm alert mạng chắc lành tính, không tốn lượt LLM.
+    pf_verdict = run_prefilter(alert.model_dump())
+    # Dashboard: ghi mọi verdict của làn lọc trước (chỉ trường hợp đồng đã kiểm, không ghi `fields` gốc)
+    RECENT_PREFILTER.append({
+        "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "alert_id": alert.alert_id, "rule_name": alert.rule_name, "rule_level": alert.rule_level,
+        "surface": alert.surface, "src_ip": alert.src_ip, "dest_ip": alert.dest_ip, "host": alert.host,
+        "lane": pf_verdict.get("lane"), "decision": pf_verdict.get("decision"),
+        "prob": pf_verdict.get("prob"), "reason": pf_verdict.get("reason"),
+        "repeat_of": pf_verdict.get("repeat_of"), "repeat_count": pf_verdict.get("repeat_count"),
+    })
+    if pf_verdict.get("decision") == "DUP":
+        logger.info(f"[Prefilter] DUP {alert.alert_id} (của {pf_verdict.get('repeat_of')}) — không phân tích lần hai")
+        return {"alert_id": alert.alert_id, "status": "prefiltered_dup",
+                "prefilter": pf_verdict, "severity": "low", "action_taken": "none",
+                "defense_profile": defense_profile.PROFILE}
+    if pf_verdict.get("decision") == "DROP":
+        logger.info(f"[Prefilter] DROP {alert.alert_id} (p={pf_verdict.get('prob')}) — không đưa lên Agent")
+        return {"alert_id": alert.alert_id, "status": "prefiltered_drop",
+                "prefilter": pf_verdict, "severity": "low", "action_taken": "none",
+                "defense_profile": defense_profile.PROFILE}
     raw_log = to_legacy_raw_log(alert)
     try:
-        res = analyze_log(LogInput(raw_log=raw_log, alert=alert.model_dump()))
+        res = analyze_log(LogInput(raw_log=raw_log, alert=alert.model_dump(), prefilter=pf_verdict))
         return {
             "alert_id": alert.alert_id,
             # B4.1: LLM lỗi → "llm_error" (bộ đo loại ca này, không tính là phán quyết thật)
@@ -776,6 +916,10 @@ def _process_one_alert(alert: Alert) -> Dict[str, Any]:
             "processing_time_ms": res.processing_time_ms,
             "enrichment_summary": res.enrichment.get("summary", ""),   # Ngày 2
             "ticket_id": (res.ticket or {}).get("ticket_id"),          # B5: tra lại ticket trong /results/recent
+            "rag": res.rag,                                            # Ngày 5 (Lớp 5): khối toàn vẹn kho
+            "prefilter": pf_verdict,                                   # B7: verdict làn ML
+            "attack_chain": res.attack_chain,                          # B10: chuỗi tactic ATT&CK của sự cố
+            "mitigations": res.mitigations,                            # B10: mitigation ATT&CK (M-code)
             "defense_profile": defense_profile.PROFILE,                # B4: bộ đo kiểm được đang gọi đúng bản
         }
     except HTTPException as e:
@@ -826,7 +970,7 @@ class RAGPoisonPayload(BaseModel):
     document: str
     metadata: dict
 
-@app.post("/internal/inject-rag-poison")
+@app.post("/internal/inject-rag-poison", dependencies=[Depends(require_internal_token)])
 def inject_rag_poison(payload: RAGPoisonPayload):
     # Dùng retriever_instance.db — PersistentClient duy nhất, không tạo thêm client mới
     # _chroma_lock serialize với mọi thao tác ChromaDB khác trong process
@@ -842,7 +986,127 @@ def inject_rag_poison(payload: RAGPoisonPayload):
                 ids=[payload.doc_id]
             )
         logger.info(f"[RAGPoison] Document injected: {payload.doc_id}")
-        return {"status": "success", "doc_id": payload.doc_id}
+        # B8: kiểm toàn vẹn NGAY lúc ghi (không chờ vòng poll 30 s, không gọi LLM).
+        _sus = _integrity_suspicious([payload.doc_id], {payload.doc_id: payload.metadata or {}})
+        if _sus:
+            _record_integrity_event(_sus, "write_path")
+            _KNOWN_DOC_IDS.add(payload.doc_id)   # monitor không báo trùng
+        return {"status": "success", "doc_id": payload.doc_id,
+                "integrity_alert": bool(_sus), "integrity_reason": _sus[0]["reason"] if _sus else None}
     except Exception as e:
         logger.error(f"[RAGPoison] Inject failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/internal/rag/integrity-events", dependencies=[Depends(require_internal_token)])
+def rag_integrity_events(limit: int = Query(default=50, ge=1, le=200)):
+    """B8: các sự kiện toàn vẹn kho gần nhất (ghi lúc ghi kho, lúc poll, lúc khởi động)."""
+    evs = list(RAG_INTEGRITY_EVENTS)[-limit:]
+    return {"count": len(evs), "events": evs}
+
+
+# ==========================================
+# INTERNAL: RAG RESET (Ngày 5 — Lớp 5)
+# Xoá tài liệu TEST (không có trong manifest đã ký). KHÔNG BAO GIỜ xoá chunk nền.
+# Dùng để đo Bảng 3: giữa mỗi ca, trả kho về trạng thái sạch.
+# ==========================================
+class RAGResetPayload(BaseModel):
+    doc_id: Optional[str] = None     # None/rỗng → xoá hết tài liệu test; có → xoá đúng 1 tài liệu test
+
+
+@app.post("/internal/rag/reset", dependencies=[Depends(require_internal_token)])
+def rag_reset(payload: Optional[RAGResetPayload] = None):
+    known = getattr(retriever_instance, "_manifest_docs", set())
+    if not known:
+        raise HTTPException(status_code=409, detail="Manifest trống/không ký — không xác định được chunk nền, từ chối xoá.")
+    try:
+        with _chroma_lock:
+            got = retriever_instance.db.get(include=[])          # chỉ cần ids
+            all_ids = got["ids"]
+            test_ids = [i for i in all_ids if i not in known]    # tài liệu lạ = không có trong manifest
+            if payload and payload.doc_id:
+                to_del = [payload.doc_id] if payload.doc_id in test_ids else []
+            else:
+                to_del = test_ids
+            if to_del:
+                retriever_instance.db.delete(to_del)
+            got2 = retriever_instance.db.get(include=[])
+            remaining = sum(1 for i in got2["ids"] if i not in known)
+        logger.info(f"[RAGReset] Đã xoá {len(to_del)} tài liệu test · còn lại {remaining}.")
+        return {"status": "success", "deleted": to_del, "remaining_test_docs": remaining}
+    except Exception as e:
+        logger.error(f"[RAGReset] Lỗi: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==========================================
+# DASHBOARD (04/10): LÀN LỌC TRƯỚC + NGƯỜI DUYỆT (Lớp 1)
+# ==========================================
+@app.get("/prefilter/recent")
+def prefilter_recent(limit: int = Query(default=100, ge=1, le=200)):
+    """Mọi verdict của prefilter (lane rule/ml; DROP/PASS_UNCERTAIN/PASS) — kể cả alert bị DROP."""
+    allv = list(RECENT_PREFILTER)
+    counts: Dict[str, int] = {}
+    for e in allv:
+        k = f"{e.get('lane')}:{e.get('decision')}"
+        counts[k] = counts.get(k, 0) + 1
+    return {"count": len(allv), "counts": counts, "events": allv[-limit:]}
+
+
+class SoarDecisionPayload(BaseModel):
+    ticket_id: str = Field(..., min_length=1, max_length=80)
+    decision: str = Field(..., pattern="^(approve|reject)$")
+    operator: str = Field(default="analyst", max_length=60)
+    note: str = Field(default="", max_length=300)
+
+
+_PROPOSED_RE = _re.compile(r"'(BLOCK_IP|NETWORK_BLOCK_FULL)'")
+
+
+@app.post("/soar/decision", dependencies=[Depends(require_internal_token)])
+def soar_decision(payload: SoarDecisionPayload):
+    """Người duyệt chốt một đề xuất BLOCK_PENDING. LUÔN chạy SIMULATION (không đọc công tắc LIVE),
+    vì đây là đường thao tác từ dashboard; quyết định được ghi lại để truy vết."""
+    entry = next((e for e in reversed(RECENT_ANALYSIS_RESULTS)
+                  if (e.get("ticket") or {}).get("ticket_id") == payload.ticket_id), None)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy ticket trong Live Feed.")
+    if str(entry.get("action_taken", "")).upper() != "BLOCK_PENDING":
+        raise HTTPException(status_code=409, detail="Ticket này không ở trạng thái BLOCK_PENDING.")
+    if entry.get("human_decision"):
+        raise HTTPException(status_code=409, detail="Ticket này đã được duyệt/từ chối.")
+
+    t = (entry.get("ticket") or {}).get("trusted") or {}
+    ip, host = str(t.get("src_ip") or ""), str(t.get("host") or "")
+    m = _PROPOSED_RE.search(" ".join(entry.get("investigation_notes") or []))
+    proposed = m.group(1) if m else "BLOCK_IP"
+    outcome = "Đã từ chối — không thực thi."
+    if payload.decision == "approve":
+        try:
+            ipaddress.ip_address(ip)
+            ip_ok = True
+        except ValueError:
+            ip_ok = False
+        if ip_ok:
+            outcome = (_exec_block_full(ip, "SIMULATION") if proposed == "NETWORK_BLOCK_FULL"
+                       else _exec_block_ip(ip, "SIMULATION"))
+        else:
+            outcome = (f"[SIMULATION] Đã ghi nhận lệnh cô lập máy '{host or '?'}' "
+                       f"(alert không có IP nguồn) — giả lập, không thực thi.")
+    rec = {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+           "ticket_id": payload.ticket_id, "incident_id": entry.get("incident_id"),
+           "decision": payload.decision, "operator": payload.operator, "note": payload.note,
+           "proposed": proposed, "target_ip": ip, "target_host": host,
+           "mode": "SIMULATION", "outcome": outcome}
+    entry["human_decision"] = rec
+    SOAR_DECISIONS.append(rec)
+    logger.warning(f"[SOAR-Decision] {payload.operator} {payload.decision} {payload.ticket_id} "
+                   f"({proposed} ip={ip or '-'} host={host or '-'}) → {outcome}")
+    return rec
+
+
+@app.get("/soar/decisions")
+def soar_decisions(limit: int = Query(default=50, ge=1, le=200)):
+    evs = list(SOAR_DECISIONS)[-limit:]
+    return {"count": len(evs), "decisions": evs}
+

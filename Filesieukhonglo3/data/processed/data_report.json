@@ -1,0 +1,257 @@
+{
+  "derived_check": {
+    "train_full": {
+      "cols": {
+        "smean": {
+          "rows": 175341,
+          "mismatch": 1643,
+          "over_big": 547,
+          "max_rel": 0.02564102564102564
+        },
+        "dmean": {
+          "rows": 175341,
+          "mismatch": 1583,
+          "over_big": 912,
+          "max_rel": 0.022222222222222223
+        },
+        "rate": {
+          "rows": 175341,
+          "mismatch": 4,
+          "over_big": 4,
+          "max_rel": 1.0
+        },
+        "sload": {
+          "rows": 175341,
+          "mismatch": 32373,
+          "over_big": 23,
+          "max_rel": 1.0
+        },
+        "dload": {
+          "rows": 175341,
+          "mismatch": 35455,
+          "over_big": 13,
+          "max_rel": 0.7897375096178696
+        }
+      },
+      "rows": 175341,
+      "any_over_big": 1482
+    },
+    "test": {
+      "cols": {
+        "smean": {
+          "rows": 82332,
+          "mismatch": 647,
+          "over_big": 282,
+          "max_rel": 0.02564102564102564
+        },
+        "dmean": {
+          "rows": 82332,
+          "mismatch": 1082,
+          "over_big": 514,
+          "max_rel": 0.022222222222222223
+        },
+        "rate": {
+          "rows": 82332,
+          "mismatch": 1269,
+          "over_big": 1269,
+          "max_rel": 1.0
+        },
+        "sload": {
+          "rows": 82332,
+          "mismatch": 18292,
+          "over_big": 1332,
+          "max_rel": 1.0
+        },
+        "dload": {
+          "rows": 82332,
+          "mismatch": 19891,
+          "over_big": 83,
+          "max_rel": 1.0
+        }
+      },
+      "rows": 82332,
+      "any_over_big": 2114
+    }
+  },
+  "train_full_nan": 0,
+  "test_nan": 0,
+  "train_full_duplicates_removed": 67601,
+  "train_post_attackcat_duplicates_removed": 6471,
+  "overlap_train_test_rows": 1302,
+  "proto_stats": {
+    "train": {
+      "__other__": {
+        "rows": 742,
+        "attack": 728,
+        "attack_rate": 0.9811320754716981
+      },
+      "any": {
+        "rows": 18,
+        "attack": 18,
+        "attack_rate": 1.0
+      },
+      "arp": {
+        "rows": 633,
+        "attack": 0,
+        "attack_rate": 0.0
+      },
+      "igmp": {
+        "rows": 17,
+        "attack": 0,
+        "attack_rate": 0.0
+      },
+      "ipv6": {
+        "rows": 12,
+        "attack": 12,
+        "attack_rate": 1.0
+      },
+      "ospf": {
+        "rows": 196,
+        "attack": 135,
+        "attack_rate": 0.6887755102040817
+      },
+      "rsvp": {
+        "rows": 12,
+        "attack": 12,
+        "attack_rate": 1.0
+      },
+      "sctp": {
+        "rows": 62,
+        "attack": 62,
+        "attack_rate": 1.0
+      },
+      "tcp": {
+        "rows": 76119,
+        "attack": 37954,
+        "attack_rate": 0.49861401227026103
+      },
+      "udp": {
+        "rows": 22984,
+        "attack": 9984,
+        "attack_rate": 0.4343891402714932
+      },
+      "unas": {
+        "rows": 474,
+        "attack": 474,
+        "attack_rate": 1.0
+      }
+    },
+    "test": {
+      "__other__": {
+        "rows": 4066,
+        "attack": 4066,
+        "attack_rate": 1.0
+      },
+      "any": {
+        "rows": 96,
+        "attack": 96,
+        "attack_rate": 1.0
+      },
+      "arp": {
+        "rows": 987,
+        "attack": 0,
+        "attack_rate": 0.0
+      },
+      "igmp": {
+        "rows": 30,
+        "attack": 0,
+        "attack_rate": 0.0
+      },
+      "ipv6": {
+        "rows": 61,
+        "attack": 61,
+        "attack_rate": 1.0
+      },
+      "ospf": {
+        "rows": 676,
+        "attack": 638,
+        "attack_rate": 0.9437869822485208
+      },
+      "rsvp": {
+        "rows": 64,
+        "attack": 64,
+        "attack_rate": 1.0
+      },
+      "sctp": {
+        "rows": 324,
+        "attack": 324,
+        "attack_rate": 1.0
+      },
+      "tcp": {
+        "rows": 43095,
+        "attack": 15247,
+        "attack_rate": 0.353799744749971
+      },
+      "udp": {
+        "rows": 29418,
+        "attack": 21321,
+        "attack_rate": 0.7247603508056292
+      },
+      "unas": {
+        "rows": 3515,
+        "attack": 3515,
+        "attack_rate": 1.0
+      }
+    }
+  },
+  "calib_train_overlap_rows": 59,
+  "splits": {
+    "train": {
+      "rows": 81015,
+      "label_counts": {
+        "0": 41512,
+        "1": 39503
+      },
+      "attack_cat_counts": {
+        "Normal": 41512,
+        "Exploits": 14929,
+        "Fuzzers": 12102,
+        "Reconnaissance": 5118,
+        "Generic": 3152,
+        "DoS": 2401,
+        "Shellcode": 880,
+        "Analysis": 429,
+        "Backdoor": 394,
+        "Worms": 98
+      }
+    },
+    "calib": {
+      "rows": 20254,
+      "label_counts": {
+        "0": 10378,
+        "1": 9876
+      },
+      "attack_cat_counts": {
+        "Normal": 10378,
+        "Exploits": 3792,
+        "Fuzzers": 2941,
+        "Reconnaissance": 1304,
+        "Generic": 772,
+        "DoS": 603,
+        "Shellcode": 209,
+        "Backdoor": 119,
+        "Analysis": 113,
+        "Worms": 23
+      }
+    },
+    "test": {
+      "rows": 82332,
+      "label_counts": {
+        "0": 37000,
+        "1": 45332
+      },
+      "attack_cat_counts": {
+        "Normal": 37000,
+        "Generic": 18871,
+        "Exploits": 11132,
+        "Fuzzers": 6062,
+        "DoS": 4089,
+        "Reconnaissance": 3496,
+        "Analysis": 677,
+        "Backdoor": 583,
+        "Shellcode": 378,
+        "Worms": 44
+      }
+    }
+  }
+}

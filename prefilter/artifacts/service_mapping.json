@@ -1,0 +1,19 @@
+{
+  "http": "http",
+  "tls": "ssl",
+  "ssl": "ssl",
+  "dns": "dns",
+  "ssh": "ssh",
+  "smtp": "smtp",
+  "ftp": "ftp",
+  "ftp-data": "ftp-data",
+  "pop3": "pop3",
+  "irc": "irc",
+  "radius": "radius",
+  "snmp": "snmp",
+  "dhcp": "dhcp",
+  "failed": "none",
+  "": "none",
+  "null": "none",
+  "-": "none"
+}

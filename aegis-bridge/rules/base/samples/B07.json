@@ -1,0 +1,25 @@
+{
+  "alert_id": "scheduler__pinktryni__search__RMD53db9d5c59b01389c_at_1791115680_29300:1791115671.558",
+  "rule_name": "Webshell Hacking Activity Patterns",
+  "rule_level": "high",
+  "attack_ids": [
+    "T1505.003",
+    "T1018",
+    "T1033",
+    "T1087"
+  ],
+  "surface": "endpoint",
+  "timestamp": "2026-10-04T12:07:51Z",
+  "src_ip": "",
+  "dest_ip": "",
+  "dest_port": null,
+  "host": "DESKTOP-6FBL9UV",
+  "fields": {
+    "ParentImage": "C:\\xampp\\apache\\bin\\httpd.exe",
+    "ParentCommandLine": "C:\\xampp\\apache\\bin\\httpd.exe -d C:/xampp/apache",
+    "Image": "C:\\Windows\\System32\\cmd.exe",
+    "CommandLine": "cmd.exe /s /c \"whoami /priv\"",
+    "EventCode": "1"
+  },
+  "summary": "Webshell Hacking Activity Patterns |  -> :None | host=DESKTOP-6FBL9UV"
+}

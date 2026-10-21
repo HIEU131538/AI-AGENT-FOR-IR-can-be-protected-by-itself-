@@ -2,6 +2,17 @@
 
 > Nhật ký thay đổi. Mục mới nhất ở trên cùng. Mỗi lần sửa code đều thêm một mục (xem `CLAUDE.md` mục 4).
 
+## [2026-10-03] B6 + Ngày 4 + Ngày 5 — CODE 4 LỚP PHÒNG VỆ (Lớp 1, 2, 4, 5), áp theo profile
+- Trạng thái: code xong, đã test (7/7 cả 4 profile off/l1/l12/full; hồi quy t_b5 31/31, t_b43d 15/15, t_b43g 4/4, t_b43h 3/3, t_b51 16/16; prompt bản OFF giống hệt trước B6: 0/40 khác → baseline off KHÔNG đổi, số đã đo vẫn dùng được). CHƯA chạy với Llama thật.
+- File mới: core/egress.py (Lớp 4 — danh sách trắng egress), core/rag_manifest.py (Lớp 5 — manifest băm + ký HMAC), tools/sign_manifests.py (ký manifest kho đã nạp, khỏi nạp lại).
+- File sửa: core/ticket.py (spotlight_message), agent/nodes/analyzer.py + reflection.py (nhánh spotlighting), agent/nodes/responder.py (Rule of Two + khiên Sanitizer + egress Telegram), agent/nodes/enricher.py (egress AbuseIPDB), agent/nodes/retriever.py + agent/state.py (khối rag), rag_engine/ingest.py (ký manifest) + rag_engine/retriever.py (lọc theo manifest + khối rag), api/main.py (CORS theo lớp + require_internal_token + /internal/rag/reset + rag vào kết quả), tools/sanitizer.py (thêm network_block_full), eval/common.py (block_pending → block, chấm cách (a)).
+- Lớp 2 (l12, full) — Spotlighting: dữ liệu log không tin cậy tách thành MESSAGE RIÊNG, bọc dấu phân cách ngẫu nhiên mỗi lượt (secrets.token_hex); system prompt chỉ còn luật + siêu dữ liệu đã kiểm. Off/l1 giữ nguyên prompt cũ.
+- Lớp 1 (l1, l12, full) — Rule of Two: Analyzer chỉ xuất nhãn (không chọn hành động); Responder chọn hành động bằng bảng tất định; MỌI lệnh chặn → BLOCK_PENDING + agent_mode HUMAN_REVIEW_REQUIRED, KHÔNG tự thực thi. Bộ đo quy đổi block_pending → block (chấm cách (a) theo Hiếu).
+- Lớp 4 (full) — Thu hẹp quyền: egress chỉ cho Ollama/Telegram/AbuseIPDB; OutputSanitizer đặt ngay trước iptables; /internal/* cần X-Internal-Token; CORS "*" → chỉ localhost. Off/l1/l12 giữ mở để đo cơ chế cũ.
+- Lớp 5 (full) — Chống đầu độc RAG: ingest ghi manifest {doc_id: sha256} + ký HMAC-SHA256; retriever chỉ nhận chunk CÓ trong manifest + băm khớp (bỏ qua metadata tự khai); khối `rag` báo tài liệu lạ lọt/bị loại; /internal/rag/reset xoá tài liệu test (không đụng chunk nền). Off dùng bộ lọc metadata cũ (để so ở Bảng 3). Đã test: doc giả metadata LỌT ở off, BỊ LOẠI ở full.
+- Việc Hiếu cần làm trước khi chạy full: đặt AGENT_INTERNAL_TOKEN và AGENT_RAG_HMAC_KEY trong .env (giữ bí mật, không commit) → chạy `python tools\\sign_manifests.py` (ký manifest 4 kho, khỏi nạp lại) → tạo kho riêng nếu chưa (make_rag_stores).
+- Việc tiếp theo: 📊 đo lần lượt l1 → l12 → full (Bảng 2), full (Bảng 4), Bảng 3 (sau khi bạn eval viết lại tài liệu thử theo /internal/rag/reset).
+
 ## [2026-10-02] 📊 BASELINE CHÍNH THỨC bản off — Bảng 4 (bộ vàng v2) + Bảng 2 dòng 0 (tiêm lệnh)
 - Hợp lệ: bộ vàng 61/61 ca không lỗi (5,6–56,9 s/kịch bản); tiêm lệnh 40/40 cặp hợp lệ, 0 lỗi đối chứng. Kết quả ở `results/baseline_v2/`. CHƯA commit/tag Git tại thời điểm đo (code = trạng thái sau mục 02/10 bên dưới).
 - Bảng 4 (off | chép luật Splunk): đúng mức 0,410 | 0,459 · ATT&CK 0,984 | 0,984 · đúng hành động 0,525 | 0,623 · báo nhầm lành tính 16/18 | 15/18 · lỗi 0 · người duyệt 0 · 13,1 s TB. Llama chọn `keep_rule_level` 56/61, `downgrade_one` 5 (cả 5 đều sai), KHÔNG lần nào `upgrade_one` hay `downgrade_benign`. Nhóm Splunk đúng (28): off 0,893; nhóm Splunk sai (33): off 0/33 — Agent bản off không sửa được ca nào Splunk sai.

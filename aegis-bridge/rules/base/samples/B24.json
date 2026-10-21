@@ -1,0 +1,117 @@
+{
+  "alert_id": "scheduler__pinktryni__search__RMD5930a65feabf95a5b_at_1791017640_18653:5",
+  "rule_name": "DNS TXT Answer with Possible Execution Strings",
+  "rule_level": "high",
+  "attack_ids": [
+    "T1071.004"
+  ],
+  "surface": "network",
+  "timestamp": "2026-10-03T08:53:44Z",
+  "src_ip": "192.168.10.135",
+  "dest_ip": "192.168.10.128",
+  "dest_port": 53848,
+  "host": "sensor-net-01",
+  "fields": {
+    "answer": "IEX",
+    "dns.aa": [
+      "true",
+      "true"
+    ],
+    "dns.answers{}.rdata": "IEX",
+    "dns.answers{}.rrname": [
+      "b24test.lab",
+      "b24test.lab"
+    ],
+    "dns.answers{}.rrtype": "TXT",
+    "dns.answers{}.ttl": [
+      "0",
+      "0"
+    ],
+    "dns.flags": [
+      "8580",
+      "8580"
+    ],
+    "dns.grouped.TXT{}": [
+      "IEX",
+      "IEX"
+    ],
+    "dns.id": [
+      "3",
+      "3"
+    ],
+    "dns.opcode": [
+      "0",
+      "0"
+    ],
+    "dns.qr": [
+      "true",
+      "true"
+    ],
+    "dns.queries{}.rrname": [
+      "b24test.lab",
+      "b24test.lab"
+    ],
+    "dns.queries{}.rrtype": [
+      "TXT",
+      "TXT"
+    ],
+    "dns.ra": [
+      "true",
+      "true"
+    ],
+    "dns.rcode": [
+      "NOERROR",
+      "NOERROR"
+    ],
+    "dns.rd": [
+      "true",
+      "true"
+    ],
+    "dns.tx_id": [
+      "1",
+      "1"
+    ],
+    "dns.type": [
+      "response",
+      "response"
+    ],
+    "dns.version": [
+      "3",
+      "3"
+    ],
+    "event_type": [
+      "dns",
+      "dns"
+    ],
+    "flow_id": [
+      "142176287223632",
+      "142176287223632"
+    ],
+    "in_iface": [
+      "eth1",
+      "eth1"
+    ],
+    "ip_v": [
+      "4",
+      "4"
+    ],
+    "pkt_src": [
+      "wire/pcap",
+      "wire/pcap"
+    ],
+    "proto": [
+      "UDP",
+      "UDP"
+    ],
+    "record_type": "TXT",
+    "src_port": [
+      "53",
+      "53"
+    ],
+    "timestamp": [
+      "2026-10-03T04:53:44.033223-0400",
+      "2026-10-03T04:53:44.033223-0400"
+    ]
+  },
+  "summary": "DNS TXT Answer with Possible Execution Strings | 192.168.10.135 -> 192.168.10.128:53848 | host=sensor-net-01"
+}

@@ -19,7 +19,8 @@ from collections import Counter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from agent.chroma_lock import chroma_lock as _chroma_lock
-from core.profile import RAG_STORE_DIR
+from core.profile import RAG_STORE_DIR, layer_enabled   # Lớp 5
+from core import rag_manifest as _rm                       # Lớp 5: manifest băm + ký HMAC
 
 CHROMA_PATH = RAG_STORE_DIR
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
@@ -98,6 +99,34 @@ class SOCRetriever:
         self.space = (self.db._collection.metadata or {}).get("hnsw:space", "l2")
         self._n = -1
         self._ensure_index()
+        # ===== LỚP 5 — nạp manifest + xác minh chữ ký HMAC =====
+        self._layer5 = layer_enabled(5)
+        self._manifest = _rm.load(CHROMA_PATH)
+        self._manifest_hash = _rm.docs_map(self._manifest)       # { doc_id : sha256 }
+        self._manifest_docs = set(self._manifest_hash.keys())
+        self._manifest_ok = _rm.verify(self._manifest) if self._manifest else False
+        # B8.1 — FAIL-CLOSED: bật Lớp 5 mà manifest thiếu / chưa ký / sai chữ ký / ký bằng khoá dev thì manifest
+        # KHÔNG được tin → loại MỌI chunk (Agent chạy không có RAG còn hơn đọc kho có thể đã bị sửa).
+        # Trước B8.1 bản này chỉ cảnh báo rồi vẫn lọc theo manifest chưa xác minh → sửa được manifest là qua Lớp 5.
+        self._key_source = _rm.key_source()
+        if not self._manifest:
+            self._manifest_problem = "manifest_missing"
+        elif not self._manifest.get("signature"):
+            self._manifest_problem = "manifest_unsigned"
+        elif self._key_source == "dev":
+            self._manifest_problem = "dev_key_not_allowed"
+        elif not self._manifest_ok:
+            self._manifest_problem = "signature_invalid"
+        else:
+            self._manifest_problem = None
+        self.manifest_trusted = self._manifest_problem is None
+        self.hash_mismatch = set()     # B8.1: chunk có trong manifest nhưng nội dung bị sửa (bị loại ở truy xuất)
+        if self._layer5:
+            if self.manifest_trusted:
+                print(f"[+] LỚP 5: manifest đã ký, hợp lệ · {len(self._manifest_docs)} chunk được bảo chứng.")
+            else:
+                print(f"[!] LỚP 5 — FAIL-CLOSED ({self._manifest_problem}): KHÔNG dùng tài liệu RAG nào cho tới khi "
+                      f"manifest được ký đúng bằng AGENT_RAG_HMAC_KEY (python tools\\sign_manifests.py --check).")
         n_sigma = sum(1 for m in self._metas if m.get("source_type") == "admin_sigma_rule")
         v2 = any(m.get("ingest_version") == "v2" for m in self._metas)
         print(f"[+] KHO KIỂM KÊ: {self._n} tài liệu · {n_sigma} luật Sigma · không gian {self.space}"
@@ -121,17 +150,34 @@ class SOCRetriever:
         # cosine: khoảng cách = 1 − cos. l2 (Chroma dùng bình phương L2, vector đã chuẩn hoá): d = 2 − 2·cos
         return 1.0 - dist if self.space == "cosine" else 1.0 - dist / 2.0
 
+    def _accept(self, doc_id, text, meta) -> bool:
+        """Chunk có được đưa vào context không.
+        LỚP 5 BẬT (full): chỉ nhận chunk CÓ trong manifest đã ký VÀ băm nội dung khớp — bất kể metadata tự khai.
+        LỚP 5 TẮT (off/l1/l12): dùng bộ lọc metadata CŨ (_trusted) — đúng cơ chế cũ để so ở Bảng 3."""
+        if self._layer5:
+            if not self.manifest_trusted:
+                return False                                     # B8.1: fail-closed
+            if doc_id not in self._manifest_docs:
+                return False
+            if _rm.sha(text) != self._manifest_hash.get(doc_id):
+                self.hash_mismatch.add(doc_id)                   # B8.1: ghi lại, không loại âm thầm
+                return False
+            return True
+        return _trusted(meta)
+
     def _get(self, where):
+        """Trả về rows CHƯA lọc tin cậy (id, doc, meta) — việc lọc + ghi nhận do retrieve() làm, để đếm được
+        tài liệu lạ bị loại (khối `rag`)."""
         with _chroma_lock:
             got = self.db.get(where=where, include=["documents", "metadatas"])
         rows = [(i, d, m or {}) for i, d, m in zip(got["ids"], got["documents"], got["metadatas"])]
-        rows = [r for r in rows if _trusted(r[2])]
         rows.sort(key=lambda r: (not r[2].get("base_rule", False), r[0]))
         return rows
 
     def retrieve(self, query: str, rule_name: str = None, attack_ids=None, k_related: int = 2) -> dict:
         self._ensure_index()
         picked, used = [], set()
+        examined = set()          # mọi doc_id ĐƯỢC XÉT (để đếm tài liệu lạ bị loại — khối `rag`, Lớp 5)
 
         def add(doc_id, text, meta, how, score):
             if doc_id not in used:
@@ -141,15 +187,21 @@ class SOCRetriever:
         # 1. luật đã bắn alert
         if rule_name and rule_name.strip():
             for doc_id, text, meta in self._get({"$and": [{"source_type": {"$eq": "admin_sigma_rule"}},
-                                                          {"title_norm": {"$eq": rule_name.strip().lower()}}]})[:1]:
-                add(doc_id, text, meta, "exact_rule", 1.0)
+                                                          {"title_norm": {"$eq": rule_name.strip().lower()}}]}):
+                examined.add(doc_id)
+                if self._accept(doc_id, text, meta):
+                    add(doc_id, text, meta, "exact_rule", 1.0)
+                    break
         # 2. kỹ thuật ATT&CK của luật: tổng quan cho 2 mã đầu, cách phát hiện cho mã đầu
         tids = [t.strip().upper() for t in (attack_ids or []) if isinstance(t, str) and t.strip()]
         for n, tid in enumerate(tids[:2]):
             for kind in (["mitre_overview", "mitre_detection"] if n == 0 else ["mitre_overview"]):
                 for doc_id, text, meta in self._get({"$and": [{"technique_id": {"$eq": tid}},
-                                                              {"doc_kind": {"$eq": kind}}]})[:1]:
-                    add(doc_id, text, meta, "exact_technique", 1.0)
+                                                              {"doc_kind": {"$eq": kind}}]}):
+                    examined.add(doc_id)
+                    if self._accept(doc_id, text, meta):
+                        add(doc_id, text, meta, "exact_technique", 1.0)
+                        break
         # 3. tìm lai: ngữ nghĩa (có ngưỡng) + BM25, gộp bằng RRF
         if query and query.strip() and k_related > 0:
             with _chroma_lock:
@@ -172,7 +224,10 @@ class SOCRetriever:
             n_related = 0
             for doc_id, _ in fused.most_common():
                 i = self._pos.get(doc_id)
-                if i is None or doc_id in used or not _trusted(self._metas[i]):
+                if i is None or doc_id in used:
+                    continue
+                examined.add(doc_id)
+                if not self._accept(doc_id, self._docs[i], self._metas[i]):
                     continue
                 add(doc_id, self._docs[i], self._metas[i], "related",
                     round(cos_of[doc_id], 3) if doc_id in cos_of else None)
@@ -191,12 +246,31 @@ class SOCRetriever:
         context = ""
         for n, p in enumerate(picked, 1):
             context += f"\n--- DOCUMENT {n} [{_HOW_LABEL[p['how']]}] ({_name(p['meta'])}) ---\n{p['text']}\n"
+
+        # ===== Khối `rag` (Lớp 5) — để Bảng 3 biết tài liệu lạ có lọt vào context hay bị loại =====
+        picked_ids = [p["id"] for p in picked]
+        known = self._manifest_docs
+        has_manifest = bool(self._manifest) and (self.manifest_trusted or not self._layer5)
+        injected_in_context = [d for d in picked_ids if has_manifest and d not in known]
+        injected_rejected = [d for d in examined
+                             if has_manifest and d not in known and d not in used]
+        rag_block = {
+            "context_ids": picked_ids,
+            "injected_in_context": injected_in_context,   # tài liệu lạ LỌT vào context (lỗ hổng)
+            "injected_rejected": injected_rejected,        # tài liệu lạ bị LOẠI (phòng vệ hoạt động)
+            "layer5": self._layer5,
+            "manifest_verified": self._manifest_ok,
+            # B8.1: chunk gốc bị SỬA nội dung (băm không khớp manifest) và đã bị loại ở lượt này
+            "tampered_rejected": sorted(d for d in examined if d in self.hash_mismatch),
+            "integrity_failure": (self._manifest_problem if self._layer5 else None),
+        }
         return {
             "context": context or "No matching reference documents.",
             "docs": [{"id": p["id"], "how": p["how"], "score": p["score"],
                       "source_type": p["meta"].get("source_type"), "doc_kind": p["meta"].get("doc_kind"),
                       "name": _name(p["meta"]), "trust_score": float(p["meta"].get("trust_score", 0.0))}
                      for p in picked],
+            "rag": rag_block,
         }
 
     def retrieve_context(self, query: str, top_k: int = 3) -> str:

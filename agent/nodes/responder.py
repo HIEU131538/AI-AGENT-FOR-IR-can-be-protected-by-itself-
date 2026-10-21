@@ -5,6 +5,9 @@ import logging
 import requests
 import ipaddress  
 from agent.state import SOCAgentState
+from core.profile import layer_enabled   # Ngày 4: Lớp 1 (Rule of Two) + Lớp 4 (sanitizer)
+from tools.sanitizer import OutputSanitizer   # Lớp 4: khiên trên đường thực thi
+from core import attack_kb                    # B10: khuyến nghị giảm thiểu theo mitigation ATT&CK
 
 # Lấy cấu hình từ biến môi trường
 ALLOW_LIVE_MODE = os.getenv("ALLOW_LIVE_MODE", "true").lower() == "true"
@@ -128,6 +131,8 @@ def execute_alert_telegram(message: str, mode: str) -> str:
         
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     try:
+        from core.egress import guard as _egress_guard   # Lớp 4: danh sách trắng egress
+        _egress_guard(url)
         resp = requests.post(url, json={"chat_id": chat_id, "text": message}, timeout=5)
         if resp.status_code == 200:
             return f"[!] ALERT (LIVE): Đã bắn thông báo Telegram thành công!"
@@ -150,6 +155,8 @@ def node_responder(state: SOCAgentState):
     
     notes = []
     notes.append(f"Responder: Chế độ SOAR hiện tại là {current_mode}.")
+    _mitigations, _mit_note = attack_kb.recommend(state)   # B10: tra tất định, không do LLM nghĩ ra
+    notes.append(_mit_note)
 
     # BẢO MẬT: Validate IP trước khi xử lý
     source_ip = state.get("extracted_ioc", {}).get("source_ip", "")
@@ -222,10 +229,40 @@ def node_responder(state: SOCAgentState):
     notes.append(f"Responder [Quyết định]: {action.upper()} - {reason}")
     print(f"[+] Quyết định hành động: {action.upper()} | Evidence: {evidence}")
 
+    # ===== LỚP 1 — RULE OF TWO (Ngày 4, bật ở l1/l12/full) =====
+    # Rule of Two (theo OWASP Agentic & hướng dẫn của Anthropic): một tác tử KHÔNG được đồng thời
+    #   (A) đọc dữ liệu không tin cậy, (B) có quyền thực hiện hành động hệ trọng, (C) tự trị không giám sát.
+    # Ở đây: Analyzer đọc dữ liệu (A) nhưng chỉ xuất NHÃN có cấu trúc (mức, mã, bằng chứng) — không chọn
+    # hành động. Responder chọn hành động bằng BẢNG QUYẾT ĐỊNH TẤT ĐỊNH ở trên (dựa trên mức + bằng chứng,
+    # KHÔNG đọc phần lý giải tự do của LLM). Và mọi LỆNH CHẶN bị tước quyền tự trị (C): phải qua người duyệt.
+    _pending_block = False
+    if layer_enabled(1) and action in ("block_ip", "network_block_full"):
+        _pending_block = True
+        notes.append(f"Responder [Lớp 1 - Rule of Two]: '{action.upper()}' là hành động hệ trọng → KHÔNG tự "
+                     f"thực thi. Chuyển trạng thái BLOCK_PENDING chờ người duyệt (Agent chỉ ĐỀ XUẤT).")
+
+    # ===== LỚP 4 — KHIÊN TRÊN ĐƯỜNG THỰC THI (OutputSanitizer) =====
+    # Dù Analyzer bị ảo giác hay bị tiêm, lệnh SOAR vẫn phải qua danh sách trắng ngay trước khi chạm iptables:
+    # hành động thuộc tập cho phép, IP đúng IPv4, không chứa ký tự thực thi (; & | ` $ ...). Sai → không thực thi.
+    _sanitizer_block = False
+    if layer_enabled(4) and not _pending_block and action not in ("ignore", "monitor"):
+        _av = OutputSanitizer.validate_action(action)
+        _iv = (OutputSanitizer.validate_ip(source_ip)
+               if source_ip and source_ip != "Unknown_IP" else {"valid": True, "reason": "ok"})
+        if not _av["valid"] or not _iv["valid"]:
+            _sanitizer_block = True
+            notes.append(f"Responder [Lớp 4 - Sanitizer]: CHẶN thực thi '{action}' trên IP '{source_ip}' "
+                         f"(action={_av['reason']}, ip={_iv.get('reason')}). Nghi lệnh bị ảo giác/tiêm.")
+
     # 3. THỰC THI SOAR PLAYBOOK
-    notes.append(f"Responder [SOAR Execution]: Tiến hành xử lý IP {source_ip}...")
+    if _pending_block:
+        notes.append("Responder [SOAR Execution]: Bỏ qua thực thi — đang chờ người duyệt (Lớp 1).")
+    elif _sanitizer_block:
+        notes.append("Responder [SOAR Execution]: Bỏ qua thực thi — bị OutputSanitizer chặn (Lớp 4).")
+    else:
+        notes.append(f"Responder [SOAR Execution]: Tiến hành xử lý IP {source_ip}...")
     
-    if source_ip and source_ip != "Unknown_IP":
+    if (not _pending_block) and (not _sanitizer_block) and source_ip and source_ip != "Unknown_IP":
         if action == "network_block_full":
             notes.append(execute_network_block_full(source_ip, current_mode))
             notes.append(execute_alert_telegram(f"🚨 [CRITICAL] NETWORK BLOCK FULL — IP {source_ip} bị cô lập hoàn toàn (INPUT+OUTPUT+FORWARD)", current_mode))
@@ -282,9 +319,22 @@ def node_responder(state: SOCAgentState):
         except Exception as e:
             notes.append(f"Responder [Auto-Save Error]: Lỗi lưu file -> {e}")
 
+    # ===== KẾT QUẢ — Lớp 1 đổi nhãn + chế độ khi chờ duyệt =====
+    if _pending_block:
+        final_action = "block_pending"            # bộ đo quy đổi → "block" (đề xuất đúng, chỉ chờ con người)
+        out_mode = "human_review_required"
+        out_reason = f"[Chờ người duyệt] Đề xuất {action.upper()}: {reason}. Lớp 1 giữ lại cho con người quyết."
+        notes.append(f"Responder [Kết quả]: BLOCK_PENDING ({action.upper()}) — chờ người duyệt, chưa thực thi gì.")
+    else:
+        final_action = action
+        out_mode = "autonomous"
+        out_reason = reason
+
     return {
-        "action_taken": action,
-        "final_response": action,
-        "response_reason": reason,
+        "action_taken": final_action,
+        "agent_mode": out_mode,
+        "final_response": final_action,
+        "response_reason": out_reason,
+        "mitigations": _mitigations,              # B10
         "investigation_notes": notes
     }

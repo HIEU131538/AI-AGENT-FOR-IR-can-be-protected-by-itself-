@@ -1,0 +1,26 @@
+{
+  "alert_id": "scheduler__pinktryni__search__RMD508e8f73cb86c22cd_at_1791115380_29155:1791115329.310",
+  "rule_name": "Webshell Detection With Command Line Keywords",
+  "rule_level": "high",
+  "attack_ids": [
+    "T1505.003",
+    "T1018",
+    "T1033",
+    "T1087"
+  ],
+  "surface": "endpoint",
+  "timestamp": "2026-10-04T12:02:09Z",
+  "src_ip": "",
+  "dest_ip": "",
+  "dest_port": null,
+  "host": "DESKTOP-6FBL9UV",
+  "fields": {
+    "ParentImage": "C:\\xampp\\apache\\bin\\httpd.exe",
+    "ParentCommandLine": "C:\\xampp\\apache\\bin\\httpd.exe -d C:/xampp/apache",
+    "Image": "C:\\Windows\\System32\\cmd.exe",
+    "OriginalFileName": "Cmd.Exe",
+    "CommandLine": "cmd.exe /s /c \"cmd -w hidden /c whoami\"",
+    "EventCode": "1"
+  },
+  "summary": "Webshell Detection With Command Line Keywords |  -> :None | host=DESKTOP-6FBL9UV"
+}

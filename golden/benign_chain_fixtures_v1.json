@@ -1,0 +1,476 @@
+{
+ "description": "Fixture KIỂM TẤT ĐỊNH cho allowlist ngữ cảnh benign (tools/check_benign_context.py). KHÔNG dùng để chỉnh luật R1/R2. BC1, BC2, BC6 là chuỗi benign đa tactic (có thể đưa sang bộ eval LLM sau); BC3-BC5 là ca đối chứng phải KHÔNG bị bỏ qua. Lệnh/đường dẫn đều là hoạt động quản trị bình thường.",
+ "fixtures": [
+  {
+   "id": "BC1",
+   "name": "Backup ban đêm: tạo task + khoá Run + systeminfo (đúng người, đúng giờ 02:10 local)",
+   "alerts": [
+    {
+     "alert_id": "BC1:e1",
+     "rule_name": "Scheduled Task Creation Via Schtasks.EXE",
+     "rule_level": "low",
+     "attack_ids": [
+      "T1053.005"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T19:10:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Scheduled Task Creation Via Schtasks.EXE |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\schtasks.exe",
+      "CommandLine": "schtasks.exe /create /tn BackupNightly /tr C:\\Scripts\\backup.bat /sc daily /st 02:00",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\backup"
+     }
+    },
+    {
+     "alert_id": "BC1:e2",
+     "rule_name": "Potential Persistence Attempt Via Run Keys Using Reg.EXE",
+     "rule_level": "medium",
+     "attack_ids": [
+      "T1547.001"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T19:11:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Potential Persistence Attempt Via Run Keys Using Reg.EXE |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\reg.exe",
+      "CommandLine": "reg.exe add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v BackupAgent /d C:\\Scripts\\agent.exe",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\backup"
+     }
+    },
+    {
+     "alert_id": "BC1:e3",
+     "rule_name": "Suspicious Execution of Systeminfo",
+     "rule_level": "low",
+     "attack_ids": [
+      "T1082"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T19:12:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Suspicious Execution of Systeminfo |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\systeminfo.exe",
+      "CommandLine": "systeminfo.exe",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\backup"
+     }
+    }
+   ],
+   "expect": {
+    "without_context": "R1",
+    "with_context": null,
+    "waived": "R1",
+    "patterns": [
+     "BC-BACKUP"
+    ]
+   }
+  },
+  {
+   "id": "BC2",
+   "name": "Admin giờ hành chính: whoami + PsExec + khoá Run (10:10 local)",
+   "alerts": [
+    {
+     "alert_id": "BC2:e1",
+     "rule_name": "Security Privileges Enumeration Via Whoami.EXE",
+     "rule_level": "high",
+     "attack_ids": [
+      "T1033"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T03:10:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Security Privileges Enumeration Via Whoami.EXE |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\whoami.exe",
+      "CommandLine": "whoami.exe /priv",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\admin"
+     }
+    },
+    {
+     "alert_id": "BC2:e2",
+     "rule_name": "Psexec Execution",
+     "rule_level": "medium",
+     "attack_ids": [
+      "T1569",
+      "T1021"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T03:11:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Psexec Execution |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Tools\\PsExec.exe",
+      "CommandLine": "PsExec.exe \\\\web-win-01 hostname",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\admin"
+     }
+    },
+    {
+     "alert_id": "BC2:e3",
+     "rule_name": "Potential Persistence Attempt Via Run Keys Using Reg.EXE",
+     "rule_level": "medium",
+     "attack_ids": [
+      "T1547.001"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T03:12:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Potential Persistence Attempt Via Run Keys Using Reg.EXE |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\reg.exe",
+      "CommandLine": "reg.exe add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v BackupAgent /d C:\\Scripts\\agent.exe",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\admin"
+     }
+    }
+   ],
+   "expect": {
+    "without_context": "R1",
+    "with_context": null,
+    "waived": "R1",
+    "patterns": [
+     "BC-ADMIN"
+    ]
+   }
+  },
+  {
+   "id": "BC6",
+   "name": "Backup ban đêm chỉ 2 tactic (task + khoá Run) → R2 bị bỏ qua",
+   "alerts": [
+    {
+     "alert_id": "BC6:e1",
+     "rule_name": "Scheduled Task Creation Via Schtasks.EXE",
+     "rule_level": "low",
+     "attack_ids": [
+      "T1053.005"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T19:10:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Scheduled Task Creation Via Schtasks.EXE |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\schtasks.exe",
+      "CommandLine": "schtasks.exe /create /tn BackupNightly /tr C:\\Scripts\\backup.bat /sc daily /st 02:00",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\backup"
+     }
+    },
+    {
+     "alert_id": "BC6:e2",
+     "rule_name": "Potential Persistence Attempt Via Run Keys Using Reg.EXE",
+     "rule_level": "medium",
+     "attack_ids": [
+      "T1547.001"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T19:11:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Potential Persistence Attempt Via Run Keys Using Reg.EXE |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\reg.exe",
+      "CommandLine": "reg.exe add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v BackupAgent /d C:\\Scripts\\agent.exe",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\backup"
+     }
+    }
+   ],
+   "expect": {
+    "without_context": "R2",
+    "with_context": null,
+    "waived": "R2",
+    "patterns": [
+     "BC-BACKUP"
+    ]
+   }
+  },
+  {
+   "id": "BC3",
+   "name": "ĐỐI CHỨNG: như BC1 nhưng 14:10 local (ngoài khung giờ backup) → vẫn R1",
+   "alerts": [
+    {
+     "alert_id": "BC3:e1",
+     "rule_name": "Scheduled Task Creation Via Schtasks.EXE",
+     "rule_level": "low",
+     "attack_ids": [
+      "T1053.005"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T07:10:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Scheduled Task Creation Via Schtasks.EXE |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\schtasks.exe",
+      "CommandLine": "schtasks.exe /create /tn BackupNightly /tr C:\\Scripts\\backup.bat /sc daily /st 02:00",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\backup"
+     }
+    },
+    {
+     "alert_id": "BC3:e2",
+     "rule_name": "Potential Persistence Attempt Via Run Keys Using Reg.EXE",
+     "rule_level": "medium",
+     "attack_ids": [
+      "T1547.001"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T07:11:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Potential Persistence Attempt Via Run Keys Using Reg.EXE |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\reg.exe",
+      "CommandLine": "reg.exe add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v BackupAgent /d C:\\Scripts\\agent.exe",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\backup"
+     }
+    },
+    {
+     "alert_id": "BC3:e3",
+     "rule_name": "Suspicious Execution of Systeminfo",
+     "rule_level": "low",
+     "attack_ids": [
+      "T1082"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T07:12:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Suspicious Execution of Systeminfo |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\systeminfo.exe",
+      "CommandLine": "systeminfo.exe",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\backup"
+     }
+    }
+   ],
+   "expect": {
+    "without_context": "R1",
+    "with_context": "R1",
+    "waived": null
+   }
+  },
+  {
+   "id": "BC4",
+   "name": "ĐỐI CHỨNG: chuỗi backup + một alert từ tài khoản web server (2 tactic) → vẫn R2",
+   "alerts": [
+    {
+     "alert_id": "BC4:e1",
+     "rule_name": "Scheduled Task Creation Via Schtasks.EXE",
+     "rule_level": "low",
+     "attack_ids": [
+      "T1053.005"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T19:10:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Scheduled Task Creation Via Schtasks.EXE |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\schtasks.exe",
+      "CommandLine": "schtasks.exe /create /tn BackupNightly /tr C:\\Scripts\\backup.bat /sc daily /st 02:00",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\backup"
+     }
+    },
+    {
+     "alert_id": "BC4:e2",
+     "rule_name": "Potential Persistence Attempt Via Run Keys Using Reg.EXE",
+     "rule_level": "medium",
+     "attack_ids": [
+      "T1547.001"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T19:11:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Potential Persistence Attempt Via Run Keys Using Reg.EXE |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\reg.exe",
+      "CommandLine": "reg.exe add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v BackupAgent /d C:\\Scripts\\agent.exe",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\backup"
+     }
+    },
+    {
+     "alert_id": "BC4:e3",
+     "rule_name": "Suspicious Process By Web Server Process",
+     "rule_level": "high",
+     "attack_ids": [
+      "T1505.003",
+      "T1190"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T19:12:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Suspicious Process By Web Server Process |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\cmd.exe",
+      "CommandLine": "cmd.exe /c hostname",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "IIS APPPOOL\\DefaultAppPool"
+     }
+    }
+   ],
+   "expect": {
+    "without_context": "R2",
+    "with_context": "R2",
+    "waived": null
+   }
+  },
+  {
+   "id": "BC5",
+   "name": "ĐỐI CHỨNG: admin đúng giờ nhưng có tactic ngoài danh sách (stealth) → vẫn R1",
+   "alerts": [
+    {
+     "alert_id": "BC5:e1",
+     "rule_name": "Security Privileges Enumeration Via Whoami.EXE",
+     "rule_level": "high",
+     "attack_ids": [
+      "T1033"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T03:10:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Security Privileges Enumeration Via Whoami.EXE |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\whoami.exe",
+      "CommandLine": "whoami.exe /priv",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\admin"
+     }
+    },
+    {
+     "alert_id": "BC5:e2",
+     "rule_name": "Psexec Execution",
+     "rule_level": "medium",
+     "attack_ids": [
+      "T1569",
+      "T1021"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T03:11:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Psexec Execution |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Tools\\PsExec.exe",
+      "CommandLine": "PsExec.exe \\\\web-win-01 hostname",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\admin"
+     }
+    },
+    {
+     "alert_id": "BC5:e3",
+     "rule_name": "Base64 Encoded PowerShell Command Detected",
+     "rule_level": "high",
+     "attack_ids": [
+      "T1027",
+      "T1140",
+      "T1059.001"
+     ],
+     "surface": "endpoint",
+     "timestamp": "2026-10-03T03:12:00Z",
+     "src_ip": "",
+     "dest_ip": "",
+     "dest_port": null,
+     "host": "web-win-01",
+     "summary": "Base64 Encoded PowerShell Command Detected |  -> :None | host=web-win-01",
+     "fields": {
+      "EventCode": "1",
+      "ComputerName": "web-win-01",
+      "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "CommandLine": "powershell.exe -File C:\\Scripts\\inventory.ps1",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "User": "DOMAIN\\admin"
+     }
+    }
+   ],
+   "expect": {
+    "without_context": "R1",
+    "with_context": "R1",
+    "waived": null
+   }
+  }
+ ]
+}

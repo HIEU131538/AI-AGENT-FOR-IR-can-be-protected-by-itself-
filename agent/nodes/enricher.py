@@ -44,6 +44,11 @@ _STAGE_VI = {
     "execution": "thực thi",
     "privilege_escalation": "leo thang",
     "exfiltration": "điều khiển/rò rỉ",
+    # B10: tên tactic ATT&CK (Correlator giờ lấy giai đoạn từ tactic) — chỉ để hiển thị trong ghi chú
+    "resource_development": "chuẩn bị hạ tầng", "persistence": "duy trì truy cập", "stealth": "ẩn mình",
+    "defense_impairment": "vô hiệu phòng thủ", "credential_access": "đánh cắp thông tin xác thực",
+    "discovery": "khám phá hệ thống", "lateral_movement": "di chuyển ngang", "collection": "thu thập dữ liệu",
+    "command_and_control": "điều khiển từ xa", "impact": "phá hoại",
 }
 
 _yaml_lock = threading.Lock()
@@ -165,6 +170,8 @@ def _abuseipdb(ip: str, errors: List[str]) -> dict:
     if not key:
         return {"verdict": "unknown", "source": "abuseipdb", "reason": "chưa cấu hình ABUSEIPDB_API_KEY"}
     try:
+        from core.egress import guard as _egress_guard   # Lớp 4: chỉ cho gọi host trong danh sách trắng
+        _egress_guard(ABUSE_URL)
         resp = requests.get(
             ABUSE_URL,
             headers={"Key": key, "Accept": "application/json"},

@@ -3,6 +3,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 
+from core import attack_kb   # B10: tactic ATT&CK tất định cho từng alert
+
 # ==========================================
 # CẤU HÌNH THAM SỐ
 # ==========================================
@@ -46,7 +48,8 @@ ATTACK_STAGE_MAP = {
 #       ("máy vừa bị khai thác nay tự hành động": tiến trình lạ trên máy web, máy web gọi ra ngoài).
 #   Không gộp chỉ vì cùng target — nếu không, mọi alert nhắm vào máy web (kể cả health check của LB) dồn một chỗ.
 #   Không xác định được actor → incident riêng (không còn thùng "unknown_ip" chung).
-PIVOT_STAGES = {"exploitation", "execution", "initial_access", "privilege_escalation"}
+PIVOT_STAGES = {"exploitation", "execution", "initial_access", "privilege_escalation",
+                "persistence"}   # B10: web shell (T1505.003) thuộc tactic Persistence trong ATT&CK
 
 
 def _asset_maps():
@@ -124,6 +127,14 @@ def node_correlator(state: dict) -> Dict[str, Any]:
         if key in event_str:
             stage = mapped_stage
             break
+    # B10: alert có mã ATT&CK → giai đoạn = TACTIC chính của mã đó (dữ liệu ATT&CK chính thức), không đoán từ khoá.
+    #      Từ khoá chỉ còn là phương án dự phòng cho đường /analyze cũ (không có mã ATT&CK).
+    _attack_ids = [str(t).strip().upper() for t in ((state.get("alert") or {}).get("attack_ids") or []) if str(t).strip()]
+    tactic = attack_kb.primary_tactic(_attack_ids)
+    if tactic:
+        stage = tactic.replace("-", "_")
+        notes.append(f"Correlator [ATT&CK]: {', '.join(_attack_ids)} → tactic {attack_kb.tactic_name(tactic)}"
+                     f" ({attack_kb.tactic_id(tactic) or '?'})")
 
     # 3. Logic Tương Quan (Time Window Filtering)
     correlation_id = None
@@ -200,7 +211,25 @@ def node_correlator(state: dict) -> Dict[str, Any]:
         "rule_level": _alert.get("rule_level"),
         "actor_key": actor,      # B5.1
         "target_key": target,
+        "tactic": tactic,                    # B10: tactic ATT&CK chính (None nếu alert không có mã)
+        "technique_ids": _attack_ids,
+        # Allowlist ngữ cảnh benign (core/benign_context.py): tài khoản chạy (User của Sysmon) và máy sinh alert
+        "user": str((_alert.get("fields") or {}).get("User") or current_log.get("User")
+                    or current_log.get("orig_User") or ""),
+        "host": str(_alert.get("host") or current_log.get("host") or ""),
     }
+    # B10: chuỗi ATT&CK của cả sự cố (các sự kiện cũ cùng correlation_id + sự kiện hiện tại)
+    _incident_events = [e for e in timeline if e.get("correlation_id") == correlation_id] + [new_event]
+    attack_chain = attack_kb.chain(_incident_events)
+    _esc, _waived = attack_kb.escalation_ctx(_incident_events)    # R1/R2 có xét allowlist ngữ cảnh benign
+    attack_chain["escalation"] = ({k: v for k, v in _esc.items() if k != "chain"} if _esc else None)
+    attack_chain["escalation_waived"] = _waived
+    if _waived:
+        notes.append(f"Correlator [Benign-context]: {_waived['rule']} đáng ra nâng {str(_waived['would_floor']).upper()} "
+                     f"nhưng bị bỏ qua — {_waived['why']}")
+    if attack_chain["distinct_tactics"]:
+        notes.append(f"Correlator [ATT&CK]: chuỗi sự cố {' → '.join(attack_chain['tactic_names'])} "
+                     f"({attack_chain['distinct_tactics']} tactic)")
     # 7. Trả về State — chỉ trả [new_event], operator.add trong state.py tự tích lũy
     return {
         "correlation_id": correlation_id,
@@ -211,5 +240,6 @@ def node_correlator(state: dict) -> Dict[str, Any]:
         "incident_severity": incident_severity,
         "attack_chain_visual": chain_visual,
         "attack_timeline": [new_event],
+        "attack_chain": attack_chain,        # B10
         "investigation_notes": notes
     }

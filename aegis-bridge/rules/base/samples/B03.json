@@ -1,0 +1,21 @@
+{
+  "alert_id": "scheduler__pinktryni__search__RMD52bfa1961496505c2_at_1791014040_17051:1791014000",
+  "rule_name": "Windows Webshell Strings",
+  "rule_level": "high",
+  "attack_ids": [
+    "T1505.003"
+  ],
+  "surface": "web",
+  "timestamp": "2026-10-03T07:53:20Z",
+  "src_ip": "192.168.10.128",
+  "dest_ip": "192.168.10.135",
+  "dest_port": 80,
+  "host": "proxy01",
+  "fields": {
+    "method": "GET",
+    "uri": "/?cmd=whoami",
+    "status": "200",
+    "http_user_agent": "curl/8.13.0"
+  },
+  "summary": "Windows Webshell Strings | 192.168.10.128 -> 192.168.10.135:80 | host=proxy01"
+}
